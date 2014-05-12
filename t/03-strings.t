@@ -32,15 +32,15 @@ foreach my $string (@strings) {
 
     $str = Datify->stringify2($string);
     # \x22 = ", \x24 = $, \x40 = @, \x5c = \
-    $escapes = $string =~ tr/\x00-\x1f\x22\x24\x40\x5c\x7f-\x9f//
-             + $string =~ tr/\x5c//;
+    $escapes = $string =~ s/([[:cntrl:]\x22\x24\x40\x5c])/$1/g
+             + $string =~ s/([\x5c])/$1/g;
     is $str =~ tr/\x5c//, $escapes, "Proper escapes for string";
 
     $str = Datify->stringify($string);
     if ( $string =~ /[[:cntrl:]]/ ) {
         # \x22 = ", \x24 = $, \x40 = @, \x5c = \
-        $escapes = $string =~ tr/\x00-\x1f\x22\x24\x40\x5c\x7f-\x9f//
-                 + $string =~ tr/\x5c//;
+        $escapes = $string =~ s/([[:cntrl:]\x22\x24\x40\x5c])/$1/g
+                 + $string =~ s/([\x5c])/$1/g;
     } else {
         $escapes = $string =~ tr/\x27\x5c// + $string =~ tr/\x5c//;
     }
