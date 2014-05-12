@@ -60,10 +60,14 @@ my @specials = (
     '{hash => 1}'   => { hash  => 1 }   => 'hash ref',
     q!bless(*UNKNOWN{IO}, 'IO::File')!
                     => *STDOUT{IO}      => 'IO',
-    'qr/(?^u:\s*)/' => qr/\s*/          => 'regexp',
     "bless({$datify}, 'Datify')"
                     => Datify->new()    => 'object',
 );
+if ( $] >= 5.014 ) {
+    push @specials, 'qr/(?^u:\s*)/'    => qr/\s*/ => 'regexp';
+} else {
+    push @specials, 'qr/(?-xism:\s*)/' => qr/\s*/ => 'regexp';
+}
 my $iter = natatime(3 => @specials);
 while ( my ($string, $special, $desc) = $iter->() ) {
     my $str;
