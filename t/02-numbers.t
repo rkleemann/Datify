@@ -1,7 +1,5 @@
 #! /usr/bin/env perl
 
-use v5.12;
-
 use Test::More tests => 21;
 
 ok require Datify, 'Required Datify';

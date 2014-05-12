@@ -1,7 +1,5 @@
 #! /usr/bin/env perl
 
-use v5.12;
-
 use List::MoreUtils 'natatime';
 use Test::More tests => 43;
 
@@ -58,16 +56,13 @@ my @specials = (
     #'TODO'          => ???              => 'format',
     '*::STDOUT'     => *STDOUT          => 'glob',
     '{hash => 1}'   => { hash  => 1 }   => 'hash ref',
+    'qr/(?^:\s*)/'  => qr/\s*/          => 'regexp',
     q!bless(*UNKNOWN{IO}, 'IO::File')!
                     => *STDOUT{IO}      => 'IO',
     "bless({$datify}, 'Datify')"
                     => Datify->new()    => 'object',
 );
-if ( $] >= 5.014 ) {
-    push @specials, 'qr/(?^u:\s*)/'    => qr/\s*/ => 'regexp';
-} else {
-    push @specials, 'qr/(?-xism:\s*)/' => qr/\s*/ => 'regexp';
-}
+
 my $iter = natatime(3 => @specials);
 while ( my ($string, $special, $desc) = $iter->() ) {
     my $str;
