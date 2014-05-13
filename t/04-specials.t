@@ -1,6 +1,5 @@
 #! /usr/bin/env perl
 
-use List::MoreUtils 'natatime';
 use Test::More tests => 43;
 
 ok require Datify, 'Required Datify';
@@ -63,8 +62,8 @@ my @specials = (
                     => Datify->new()    => 'object',
 );
 
-my $iter = natatime(3 => @specials);
-while ( my ($string, $special, $desc) = $iter->() ) {
+for ( my $i = 0; $i < @specials - 1; $i += 3 ) {
+    my ( $string, $special, $desc ) = @specials[ $i, $i + 1, $i + 2 ];
     my $str;
 
     $str = Datify->scalarify($special);
