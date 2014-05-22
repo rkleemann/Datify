@@ -95,9 +95,10 @@ my %SETTINGS = (
     list_sep    => ', ',
 
     # Object options
-    object  => 'bless($data, $class_str)',
-    #object  => '$class($data)',
-    io      => '*UNKNOWN{IO}',
+    overloads => [ '""', '0+' ],
+    object    => 'bless($data, $class_str)',
+    #object    => '$class($data)',
+    io        => '*UNKNOWN{IO}',
 
     # Code options
     code    => 'sub {...}',
@@ -492,6 +493,20 @@ sub hashify  {
 }
 
 # Objects
+sub overloaded {
+    my $self   = shift; $self = $self->new() unless ref $self;
+    my $object = shift;
+
+    return unless overload::Overloaded($object);
+
+    foreach my $overload ( @{ $self->{overloads} } ) {
+        if ( my $method = overload::Method( $object => $overload ) ) {
+            return $method;
+        }
+    }
+    return;
+}
+
 sub objectify {
     my $self   = shift; $self = $self->new() unless ref $self;
     my $object = shift;
@@ -500,12 +515,8 @@ sub objectify {
         unless my $class = Scalar::Util::blessed $object;
 
     my $data;
-    if (
-        overload::Overloaded($object)
-        && ( my $meth = overload::Method( $object => '""' )
-            ||          overload::Method( $object => '0+' ) )
-    ) {
-        $data = $self->scalarify( $object->$meth() );
+    if ( my $method = $self->overloaded($object) ) {
+        $data = $self->scalarify( $object->$method() );
     } else {
         $data = Scalar::Util::reftype $object;
 
@@ -926,9 +937,14 @@ What character to use to seperate sets of numbers.
 
 =over
 
-=item I<object>  => B<'bless($data, $class_str)'>
+=item I<overloads>  => B<[ '""', '0+' ]>
 
-=item I<io>      => B<'*UNKNOWN{IO}'>
+The list of overloads to check for before deconstructing the object.
+See L<overload> for more information on overloading.
+
+=item I<object>     => B<'bless($data, $class_str)'>
+
+=item I<io>         => B<'*UNKNOWN{IO}'>
 
 =back
 
