@@ -156,24 +156,43 @@ sub get {
     else                  { return @{$self}{@_} }
 }
 
+# Name can be any of the following:
+# * package name (optional) followed by:
+#   * normal word
+#   * ::
+# * Perl special variable:
+#   * numbers
+#   * punctuation
+#   * control character
+#   * control word
 my $sigils     = '[\@\%\$]';
-my $pkg        = '[[:alpha:]]\w*(?:\::\w+)*';
+my $package    = '[[:alpha:]]\w*(?:\::\w+)*';
 my $word       = '[[:alpha:]_]\w*';
 my $digits     = '\d+';
-my $cntrl      = '(?:[[:cntrl:]]|\^[[:upper:]])';
 my $punct      = '[[:punct:]]';
-my $cntrl_word = "\\{$cntrl$word\\}";
-my ($name_re)  = map qr/^$_$/, join('',
-    "$sigils?",
-    "(?:$pkg\::)?",
-    '(?:' . join('|', $word, $digits, $cntrl, $punct, $cntrl_word ) . ')'
-);
+my $cntrl      = '(?:[[:cntrl:]]|\^[[:upper:]])';
+my $cntrl_word = "$cntrl$word";
+my $varname
+    = '(?:' . join( '|', $word, $digits, $punct, $cntrl, $cntrl_word ) . ')';
+$varname .= "|\\{\\s*$varname\\s*\\}";
+$varname  = "(?:$varname)";
+
 sub varify {
-    my $self  = shift; $self = $self->new() unless ref $self;
-    my $name  = shift if ( ! ref $_[0] && $_[0] =~ $name_re );
+    my $self = shift; $self = $self->new() unless ref $self;
+    my ($sigil, $name);
+    if ( defined $_[0] && !ref $_[0] ) {
+        ( $sigil, $name )
+            = $_[0] =~ /^($sigils)?((?:$package\::)?$varname|$package\::)$/;
+        shift if defined $name && length $name;
+    }
     my $value = 1 == @_ ? shift : \@_;
 
-    if ( ! defined $name ) {
+    if ( defined $name && length $name ) {
+        if ( $name =~ /[[:cntrl:]]/ ) {
+            $name =~ s/([[:cntrl:]])/'^' . chr(64 + ord($1) % 64)/e;
+            $name =~ s/($cntrl_word)(?!\s*\})/\{$1\}/;
+        }
+    } else {
         if ( my $ref = ref $value ) {
             $name = _nameify($ref);
         } else {
@@ -182,14 +201,13 @@ sub varify {
     }
     Carp::croak "Missing name" unless ( defined $name && length $name );
 
-    my $sigil;
-    unless ( ($sigil) = $name =~ /^($sigils)/ ) {
+    unless ($sigil) {
         my $ref = ref $value;
         if    ( $ref eq 'ARRAY' ) { $sigil = '@'; }
         elsif ( $ref eq 'HASH' )  { $sigil = '%'; }
         else                      { $sigil = '$'; }
-        $name = $sigil . $name;
     }
+    $name = $sigil . $name;
     $self = $self->set( name => $name );
 
     if    ( $sigil eq '$' ) { $value = $self->scalarify($value); }
