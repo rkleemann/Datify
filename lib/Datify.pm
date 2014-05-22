@@ -565,6 +565,21 @@ sub objectify {
 # Objects: IO
 sub ioify {
     my $self = shift; $self = $self->new() unless ref $self;
+    my $io   = shift;
+    foreach my $ioe (qw(IN OUT ERR)) {
+        no strict 'refs';
+        if ( *{"main::STD$ioe"}{IO} == $io ) {
+            return "*STD$ioe\{IO}";
+        }
+    }
+    # TODO
+    #while ( my ( $name, $glob ) = each %main:: ) {
+    #    no strict 'refs';
+    #    if ( defined( *{$glob}{IO} ) && *{$glob}{IO} == $io ) {
+    #        keys %main::; # We're done, so reset each()
+    #        return "*$name\{IO}";
+    #    }
+    #}
     return $self->{io};
 }
 
