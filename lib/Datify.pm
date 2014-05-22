@@ -840,7 +840,7 @@ does not have native boolean values, these are placeholders.
 
 What to use as the default quote character.
 If set to a false value, then use the best guess.
-See L<stringify> below.
+See L</stringify> below.
 
 =item I<quote1>  => B<"'">
 
@@ -865,7 +865,7 @@ TODO
 =item I<longstr> => B<1_000>
 
 How long a string needs to be before it's considered long.
-See L<stringify> below.
+See L</stringify> below.
 Change to a false value to mean no string is long.
 Change to a negative value to mean every string is long.
 
@@ -997,6 +997,14 @@ See L<overload> for more information on overloading.
 
 =back
 
+=item Formatify options
+
+=over
+
+=item I<format>  => B<"format UNKNOWN =\n.\n">
+
+=back
+
 =back
 
 =head2 Methods
@@ -1009,7 +1017,7 @@ Create a C<Datify> object with the following options.
 
 =item C<< set( name => value, name => value, ... ) >>
 
-Change the L<Options> settings.
+Change the L</Options> settings.
 When called as a class method, changes default options.
 When called as an object method, changes the settings and returns a
 new object.
