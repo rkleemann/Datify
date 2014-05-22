@@ -118,9 +118,9 @@ sub keysort($$) {
 
 sub add_handler {
     no strict 'refs';
-    my $pkg   = shift || __PACKAGE__; $pkg = ref $pkg || $pkg;
-    my $name  = _nameify(shift);
-    *{ $name } = Sub::Name::subname $name => shift;
+    my $pkg  = shift || __PACKAGE__; $pkg = ref $pkg || $pkg;
+    my $name = _nameify(shift);
+    *{$name} = Sub::Name::subname $name => shift;
 }
 
 # Constructor
@@ -224,7 +224,7 @@ sub varify {
 
     $value = subst( $self->{assign}, var => $name, value => $value );
     if ( $self->{beautify} ) {
-        return $self->{beautify}->( $value );
+        return $self->{beautify}->($value);
     } else {
         return $value;
     }
@@ -533,7 +533,7 @@ sub objectify {
     my $object = shift;
 
     return $self->scalarify($object)
-        unless my $class = Scalar::Util::blessed $object;
+        unless defined( my $class = Scalar::Util::blessed $object );
 
     my $data;
     if ( my $method = $self->overloaded($object) ) {
