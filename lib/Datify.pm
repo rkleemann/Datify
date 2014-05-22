@@ -102,6 +102,9 @@ my %SETTINGS = (
 
     # Code options
     code    => 'sub {...}',
+
+    # Format options
+    format  => "format UNKNOWN =\n.\n",
 );
 
 sub keysort($$) {
@@ -597,7 +600,8 @@ sub refify    {
 
 sub formatify {
     my $self = shift; $self = $self->new() unless ref $self;
-    Carp::croak "Unhandled type: ", ref shift;
+    #Carp::croak "Unhandled type: ", ref shift;
+    return $self->{format};
 }
 
 sub globify   {
