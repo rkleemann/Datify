@@ -587,8 +587,12 @@ sub formatify {
 
 sub globify   {
     my $self = shift; $self = $self->new() unless ref $self;
-    local $_ = shift;
-    ( my $name = "$_" ) =~ s/^\*main\::/*::/;
+    my $name = '' . shift;
+    if ( $name =~ /^\*$package\::(?:$word|$digits)?$/ ) {
+        $name =~ s/^\*main::/*::/;
+    } else {
+        $name =~ s/^\*($package\::.+)/'*{' . $self->stringify($1) . '}'/e;
+    }
     return $name;
 }
 
