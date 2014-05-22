@@ -10,6 +10,7 @@ use Carp            ();#qw(croak);
 use List::Util      ();#qw(reduce sum);
 use Scalar::Util    ();#qw(blessed looks_like_number refaddr);
 use String::Tools   qw(subst);
+use Sub::Name       ();#qw(subname);
 
 my %SETTINGS = (
     # Var options
