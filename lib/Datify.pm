@@ -13,6 +13,7 @@ use String::Tools   qw(subst);
 use Sub::Name       ();#qw(subname);
 
 my %SETTINGS = (
+
     # Var options
     name        => '$self',
     assign      => '$var = $value;',
@@ -105,6 +106,7 @@ my %SETTINGS = (
 
     # Format options
     format  => "format UNKNOWN =\n.\n",
+
 );
 
 
@@ -115,6 +117,8 @@ sub add_handler {
     *{$name} = Sub::Name::subname $name => shift;
 }
 
+
+
 # Constructor
 sub new {
     my $self = shift || __PACKAGE__;
@@ -124,6 +128,8 @@ sub new {
         return bless { %SETTINGS, @_ }, $self;
     }
 }
+
+
 
 # Setter
 sub set {
@@ -149,6 +155,8 @@ sub set {
 
     return ( $self, $class )[$return];
 }
+
+
 
 # Accessor
 sub get {
@@ -179,6 +187,8 @@ my $varname
     = '(?:' . join( '|', $word, $digits, $punct, $cntrl, $cntrl_word ) . ')';
 $varname .= "|\\{\\s*$varname\\s*\\}";
 $varname  = "(?:$varname)";
+
+
 
 sub varify {
     my $self = shift; $self = $self->new() unless ref $self;
@@ -230,11 +240,15 @@ sub varify {
     }
 }
 
+
+
 # Scalar: undef
 sub undefify {
     my $self = shift; $self = $self->new() unless ref $self;
     return $self->{null};
 }
+
+
 
 # Scalar: boolean
 sub booleanify {
@@ -243,6 +257,8 @@ sub booleanify {
     return $self->undefify unless defined;
     return $_ ? $self->{true} : $self->{false};
 }
+
+
 
 # Scalar: single-quoted string
 sub stringify1 {
@@ -263,6 +279,8 @@ sub stringify1 {
 
     return sprintf '%s%s%s', $open, $_, $close;
 }
+
+
 
 # Scalar: double-quoted string
 sub stringify2 {
@@ -286,6 +304,8 @@ sub stringify2 {
 
     return sprintf '%s%s%s', $open, $_, $close;
 }
+
+
 
 # Scalar: string
 sub stringify {
@@ -321,6 +341,8 @@ sub stringify {
     return $self->stringify1( $_, $self->_find_q($_) );
 }
 
+
+
 # Scalar: number
 # Adapted from Perl FAQ "How can I output my numbers with commas added?"
 sub numify {
@@ -337,6 +359,8 @@ sub numify {
 
     return $_;
 }
+
+
 
 # Scalar
 sub scalarify {
@@ -392,10 +416,14 @@ sub scalarify {
     }
 }
 
+
+
 sub lvalueify {
     my $self = shift; $self = $self->new() unless ref $self;
     return subst( $self->{lvalue}, lvalue => $self->stringify(shift) );
 }
+
+
 
 # Scalar: VString
 sub vstringify {
@@ -406,6 +434,8 @@ sub vstringify {
         return sprintf $self->{vformat}, shift;
     }
 }
+
+
 
 # Regexp
 sub regexpify {
@@ -430,6 +460,8 @@ sub regexpify {
     return sprintf '%s%s%s', $open, $_, $close;
 }
 
+
+
 # List/Array
 sub listify {
     my $self = shift; $self = $self->new() unless ref $self;
@@ -453,10 +485,14 @@ sub listify {
     return join($self->{list_sep}, @values);
 }
 
+
+
 sub arrayify {
     my $self = shift; $self = $self->new() unless ref $self;
     return subst( $self->{array_ref}, $self->listify(@_) );
 }
+
+
 
 # Hash
 sub keyify {
@@ -480,6 +516,8 @@ sub keyify {
     return $self->stringify($_);
 }
 
+
+
 sub keysort($$) {
     my $n0 = Scalar::Util::looks_like_number($_[0]);
     my $n1 = Scalar::Util::looks_like_number($_[1]);
@@ -488,6 +526,8 @@ sub keysort($$) {
     elsif ( $n1 )     { return +1 }
     else              { return $_[0] cmp $_[1] }
 }
+
+
 
 sub pairify {
     my $self = shift; $self = $self->new() unless ref $self;
@@ -519,10 +559,13 @@ sub pairify {
     return join($self->{list_sep}, @list);
 }
 
+
+
 sub hashify  {
     my $self = shift; $self = $self->new() unless ref $self;
     return subst( $self->{hash_ref}, $self->pairify(@_) );
 }
+
 
 # Objects
 sub overloaded {
@@ -538,6 +581,8 @@ sub overloaded {
     }
     return;
 }
+
+
 
 sub objectify {
     my $self   = shift; $self = $self->new() unless ref $self;
@@ -576,6 +621,8 @@ sub objectify {
     );
 }
 
+
+
 # Objects: IO
 sub ioify {
     my $self = shift; $self = $self->new() unless ref $self;
@@ -597,11 +644,15 @@ sub ioify {
     return $self->{io};
 }
 
+
+
 # Other
 sub codeify   {
     my $self = shift; $self = $self->new() unless ref $self;
     return $self->{code};
 }
+
+
 
 sub refify    {
     my $self = shift; $self = $self->new() unless ref $self;
@@ -609,11 +660,15 @@ sub refify    {
     return subst( $self->{reference}, $self->scalarify($$_) );
 }
 
+
+
 sub formatify {
     my $self = shift; $self = $self->new() unless ref $self;
     #Carp::croak "Unhandled type: ", ref shift;
     return $self->{format};
 }
+
+
 
 sub globify   {
     my $self = shift; $self = $self->new() unless ref $self;
@@ -792,9 +847,9 @@ The delimiters for a list.
 
 =item I<beautify>   => B<undef>
 
-Set this to a sub reference that you would like to use to beautify the code.
-It should accept the code as the first parameter, process it, and return
-the code after all the beauty modifications have been completed.
+Set this to a C<CODE> reference that you would like to use to beautify
+the code.  It should accept the code as the first parameter, process it,
+and return the code after all the beauty modifications have been completed.
 
 An example:
 
@@ -804,10 +859,17 @@ An example:
  sub beautify {
      my $source = shift;
 
+     my ($dest, stderr);
      Perl::Tidy::perltidy(
+         argv => [ qw(
+             --noprofile
+             --nostandard-output
+             --standard-error-output
+             --nopass-version-line
+         ) ],
          source      => \$source,
-         destination => \my $dest,
-         stderr      => \my $stderr,
+         destination => \$dest,
+         stderr      => \$stderr,
          errorfile   => \$stderr,
      ) && die $stderr;
 
@@ -820,6 +882,8 @@ An example:
 
 =back
 
+
+
 =item Undefify options
 
 =over
@@ -830,6 +894,8 @@ What to use as the null value.
 
 =back
 
+
+
 =item Booleanify options
 
 =over
@@ -838,10 +904,12 @@ What to use as the null value.
 
 =item I<false>   => B<"''">
 
-What to use as the values for C<true> and C<false>, respectively.  Since Perl
-does not have native boolean values, these are placeholders.
+What to use as the values for C<true> and C<false>, respectively.
+Since Perl does not have native boolean values, these are placeholders.
 
 =back
+
+
 
 =item Stringify options
 
@@ -851,7 +919,7 @@ does not have native boolean values, these are placeholders.
 
 What to use as the default quote character.
 If set to a false value, then use the best guess.
-See L</stringify> below.
+See L</stringify( value )>.
 
 =item I<quote1>  => B<"'">
 
@@ -871,12 +939,13 @@ The special double-quoting character starter.
 
 =item I<sigils>  => B<'$@'>
 
-TODO
+The characters in a double quoted sting that need to be quoted,
+or they may be interpreted as variable interpolation.
 
 =item I<longstr> => B<1_000>
 
 How long a string needs to be before it's considered long.
-See L</stringify> below.
+See L</stringify( value )>.
 Change to a false value to mean no string is long.
 Change to a negative value to mean every string is long.
 
@@ -905,6 +974,8 @@ which character would work best.
 
 =back
 
+
+
 =item LValueify options
 
 =over
@@ -914,6 +985,8 @@ which character would work best.
 How to generate a LValue.
 
 =back
+
+
 
 =item VStringify options
 
@@ -929,6 +1002,8 @@ C<< vformat => 'v%*vd', vsep => '.' >>.
 
 =back
 
+
+
 =item Numify options
 
 =over
@@ -939,17 +1014,27 @@ What character to use to seperate sets of numbers.
 
 =back
 
+
+
 =item Refify options
 
 =over
 
 =item I<reference>   => B<'\\$_'>
 
+The representation of a reference.
+
 =item I<dereference> => B<< '$referent->$place' >>
+
+The representation of dereferencing.
 
 =item I<nested>      => B<'$referent$place'>
 
+The representation of dereferencing a nested reference.
+
 =back
+
+
 
 =item Regexpify options
 
@@ -961,19 +1046,33 @@ What character to use to seperate sets of numbers.
 
 =back
 
+
+
 =item Hashify options
 
 =over
 
 =item I<hash_ref>    => B<'{$_}'>
 
+The representation of a hash reference.
+
 =item I<pair>        => B<< '$key => $value' >>
+
+The representation of a pair.
 
 =item I<keysort>     => B<\&Datify::keysort>
 
+How to sort the keys in a hash.  This has a performance hit,
+but it makes the output much more readable.  See the description of
+L</keysort> below.
+
 =item I<keywords>    => B<[qw(undef)]>
 
+Any keywords that should be quoted, even though they may not need to be.
+
 =back
+
+
 
 =item Arrayify options
 
@@ -981,9 +1080,15 @@ What character to use to seperate sets of numbers.
 
 =item I<array_ref>   => B<'[$_]'>
 
+The representation of an array reference.
+
 =item I<list_sep>    => B<', '>
 
+The representation of the separator between list elements.
+
 =back
+
+
 
 =item Objectify options
 
@@ -996,9 +1101,16 @@ See L<overload> for more information on overloading.
 
 =item I<object>     => B<'bless($data, $class_str)'>
 
+The representation of a object.  Other possibilities include
+C<'$class($data)'> or C<'$class->new($data)'>.
+
 =item I<io>         => B<'*UNKNOWN{IO}'>
 
+The representation of unknown IO objects.
+
 =back
+
+
 
 =item Codeify options
 
@@ -1006,13 +1118,21 @@ See L<overload> for more information on overloading.
 
 =item I<code>    => B<'sub {...}'>
 
+The representation of a code reference.  This module does not currently
+support decompiling code to make a complete representation.
+
 =back
+
+
 
 =item Formatify options
 
 =over
 
 =item I<format>  => B<"format UNKNOWN =\n.\n">
+
+The representation of a format.  This module does not currently support
+showing the acutal repreenstation.
 
 =back
 
@@ -1021,6 +1141,12 @@ See L<overload> for more information on overloading.
 =head2 Methods
 
 =over
+
+=item C<< add_handler( 'Class::Name' => \&code_ref ) >>
+
+Add a handler to handle an object of type C<'Class::Name'>.  C<\&code_ref>
+should take two parameters, a reference to Datify, and the object to be
+Datify'ed.  It should return a representation of the object.
 
 =item C<< new( name => value, name => value, ... ) >>
 
@@ -1033,7 +1159,7 @@ When called as a class method, changes default options.
 When called as an object method, changes the settings and returns a
 new object.
 
-B<NOTE:> When called as a method on an object, this returns a new instance
+B<NOTE:> When called as a object method, this returns a new instance
 with the values set, so you will need to capture the return if you'd like to
 persist the change:
 
@@ -1042,7 +1168,9 @@ persist the change:
 =item C<get( name, name, ... )>
 
 Get one or more existing values for one or more settings.
-If passed no names, returns all values.
+If passed no names, returns all parameters and values.
+
+Can be called as a class method or an object method.
 
 =item C<< varify( name => value, value, ... ) >>
 
@@ -1089,12 +1217,12 @@ Returns the string that should be used for an undef value.
 Returns the string that represents the C<true> or C<false> interpretation
 of value.
 
-=item C<stringify1( value, delimiters )>
+=item C<stringify1( value I<, delimiters> )>
 
 Returns the string that represents value as a single-quoted string.
 The delimiters parameter is optional.
 
-=item C<stringify2( value, delimiters )>
+=item C<stringify2( value I<, delimiters> )>
 
 Returns the string that represents value as a double-quoted string.
 The delimiters parameter is optional.
@@ -1147,6 +1275,10 @@ Returns value(s) as an array.
 Returns value as a key.  If value does not need to be quoted, it will not be.
 Verifies that value is not a keyword.
 
+=item C<keysort( $a, $b )>
+
+Not a method, but a sorting routine that sort numbers before strings.
+
 =item C<pairify( value, value, ... )>
 
 Returns value(s) as a pair.
@@ -1159,11 +1291,21 @@ Returns value(s) as a hash.
 
  Datify->hashify( a => 1, b => 2 ) # '{a => 1, b => 2}'
 
+=item C<overloaded( $object )>
+
+Returns the first method from the C<overloads> list that $object
+has overloaded.  If nothing is overloaded, then return nothing.
+
 =item C<objectify( value )>
 
 Returns value as an object.
 
  Datify->objectify( $object ) # "bless({}, 'Object')"
+
+=item C<ioify( value )>
+
+Returns a representation of value that is accurate if $io is STDIN, STDOUT,
+or STDERR.  Otherwise, returns the C<io> setting.
 
 =item C<codeify( value )>
 
@@ -1177,13 +1319,15 @@ Returns value as reference.
 
 =item C<formatify( value )>
 
-TODO
+Returns a value that is not completely unlike value.
 
 =item C<globify( value )>
 
-TODO
+Returns a representation of value.
+For normal values, remove the leading C<main::>.
 
 =back
+
 
 =head1 BUGS
 
@@ -1195,11 +1339,7 @@ No known bugs.
 
 =item *
 
-Handle formats.
-
-=item *
-
-Handle globs
+Handle formats better.
 
 =back
 
