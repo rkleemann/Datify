@@ -107,14 +107,6 @@ my %SETTINGS = (
     format  => "format UNKNOWN =\n.\n",
 );
 
-sub keysort($$) {
-    my $n0 = Scalar::Util::looks_like_number($_[0]);
-    my $n1 = Scalar::Util::looks_like_number($_[1]);
-    if ( $n0 && $n1 ) { return $_[0] <=> $_[1] }
-    elsif ( $n0 )     { return -1 }
-    elsif ( $n1 )     { return +1 }
-    else              { return $_[0] cmp $_[1] }
-}
 
 sub add_handler {
     no strict 'refs';
@@ -125,29 +117,37 @@ sub add_handler {
 
 # Constructor
 sub new {
-    my $class = shift || __PACKAGE__; $class = ref $class || $class;
-    my $self  = { %SETTINGS, @_ };
-
-    return bless $self, $class;
+    my $self = shift || __PACKAGE__;
+    if ( my $class = ref $self ) {
+        return bless { %$self,    @_ }, $class;
+    } else {
+        return bless { %SETTINGS, @_ }, $self;
+    }
 }
 
 # Setter
 sub set {
-    my $self = my $class = shift;
-    if ( ref $self ) {
+    my $self = shift;
+    my %set  = @_;
+
+    my $return;
+    my $class;
+    if ( $class = ref $self ) {
         # Make a copy
-        $self = bless { %$self }, $class = ref $self;
+        $self   = bless { %$self }, $class;
+        $return = 0;
     } else {
-        $self = \%SETTINGS;
+        $class  = $self;
+        $self   = \%SETTINGS;
+        $return = 1;
     }
 
-    my %set = @_;
     delete $self->{keyword_set} if ( $set{keywords} );
     delete $self->{"tr$_"} for grep { exists $set{"quote$_"} } ( 1, 2, 3 );
 
     %$self = ( %$self, %set );
 
-    return 'HASH' eq ref $self ? $class : $self;
+    return ( $self, $class )[$return];
 }
 
 # Accessor
@@ -270,8 +270,10 @@ sub stringify2 {
     local $_ = shift;
     my ( $open, $close ) = $self->_get_delim( shift // $self->{quote2} );
 
-    # quote char(s), dollar-sign, at-sign, and backslash.
-    s/([$open$close\x24\x40\x5c])/\\$1/g;
+    my $sigils = $self->{sigils} =~ s/(.)/$self->_encode($1)/egsr;
+
+    # quote char(s), sigils, and backslash.
+    s/([$open$close$sigils\x5c])/\\$1/g;
     s/([[:cntrl:]])/$self->_encode($1)/eg;
 
     if ( $self->{quote2} ne $open ) {
@@ -476,6 +478,15 @@ sub keyify {
         return "$_"; # Make sure it's stringified.
     }
     return $self->stringify($_);
+}
+
+sub keysort($$) {
+    my $n0 = Scalar::Util::looks_like_number($_[0]);
+    my $n1 = Scalar::Util::looks_like_number($_[1]);
+    if ( $n0 && $n1 ) { return $_[0] <=> $_[1] }
+    elsif ( $n0 )     { return -1 }
+    elsif ( $n1 )     { return +1 }
+    else              { return $_[0] cmp $_[1] }
 }
 
 sub pairify {
