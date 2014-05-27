@@ -48,7 +48,7 @@ my $datify = join(' ', qw(
     vformat     => 'v%vd'
 ));
 
-format EMPTY_FORM =
+format EMPTY_FORMAT =
 .
 
 my @specials = (
@@ -67,7 +67,7 @@ my @specials = (
     q!bless(*STDOUT{IO}, 'IO::File')! => *STDOUT{IO}   => 'IO',
     "bless({$datify}, 'Datify')"      => Datify->new() => 'object',
 
-    "format UNKNOWN =\n.\n" => *EMPTY_FORM{FORMAT} => 'format ref',
+    "format UNKNOWN =\n.\n" => *EMPTY_FORMAT{FORMAT} => 'format ref',
 );
 
 for ( my $i = 0; $i < @specials - 1; $i += 3 ) {
