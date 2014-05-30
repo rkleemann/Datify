@@ -468,6 +468,14 @@ Add a handler to handle an object of type C<'Class::Name'>.  C<\&code_ref>
 should take two parameters, a reference to Datify, and the object to be
 Datify'ed.  It should return a representation of the object.
 
+ # Set URI's to stringify as "URI->new('http://example.com')"
+ # instead of "bless(\'http://example.com', 'URI')"
+ Datify->add_handler( 'URI' => sub {
+     my ( $datify, $uri ) = @_;
+     my $s = $datify->stringify("$uri");
+     return "URI->new($s)";
+ } );
+
 =cut
 
 sub add_handler {
@@ -479,13 +487,14 @@ sub add_handler {
 
 
 
+### Constructor ###
+
 =item C<< new( name => value, name => value, ... ) >>
 
 Create a C<Datify> object with the following options.
 
 =cut
 
-# Constructor
 sub new {
     my $self = shift || __PACKAGE__;
     if ( my $class = ref $self ) {
@@ -496,6 +505,8 @@ sub new {
 }
 
 
+
+### Setter ###
 
 =item C<< set( name => value, name => value, ... ) >>
 
@@ -512,7 +523,6 @@ persist the change:
 
 =cut
 
-# Setter
 sub set {
     my $self = shift;
     my %set  = @_;
@@ -539,6 +549,8 @@ sub set {
 
 
 
+### Accessor ###
+
 =item C<get( name, name, ... )>
 
 Get one or more existing values for one or more settings.
@@ -548,7 +560,6 @@ Can be called as a class method or an object method.
 
 =cut
 
-# Accessor
 sub get {
     my $self = shift; $self = \%SETTINGS unless ref $self;
     my $count = scalar @_;
@@ -556,6 +567,8 @@ sub get {
     elsif ( $count == 1 ) { return $self->{ +shift } }
     else                  { return @{$self}{@_} }
 }
+
+
 
 # Name can be any of the following:
 # * package name (optional) followed by:
@@ -577,8 +590,6 @@ my $varname
     = '(?:' . join( '|', $word, $digits, $punct, $cntrl, $cntrl_word ) . ')';
 $varname .= "|\\{\\s*$varname\\s*\\}";
 $varname  = "(?:$varname)";
-
-
 
 =item C<< varify( name => value, value, ... ) >>
 
@@ -670,19 +681,22 @@ sub varify {
 
 
 
+### Scalar: undef ###
+
 =item C<undefify>
 
 Returns the string that should be used for an undef value.
 
 =cut
 
-# Scalar: undef
 sub undefify {
     my $self = shift; $self = $self->new() unless ref $self;
     return $self->{null};
 }
 
 
+
+### Scalar: boolean ###
 
 =item C<booleanify( value )>
 
@@ -691,7 +705,6 @@ of value.
 
 =cut
 
-# Scalar: boolean
 sub booleanify {
     my $self = shift; $self = $self->new() unless ref $self;
     local $_ = shift;
@@ -701,6 +714,8 @@ sub booleanify {
 
 
 
+### Scalar: single-quoted string ###
+
 =item C<stringify1( value I<, delimiters> )>
 
 Returns the string that represents value as a single-quoted string.
@@ -708,7 +723,6 @@ The delimiters parameter is optional.
 
 =cut
 
-# Scalar: single-quoted string
 sub stringify1 {
     my $self = shift; $self = $self->new() unless ref $self;
     local $_ = shift;
@@ -730,6 +744,8 @@ sub stringify1 {
 
 
 
+### Scalar: double-quoted string ###
+
 =item C<stringify2( value I<, delimiters> )>
 
 Returns the string that represents value as a double-quoted string.
@@ -737,7 +753,6 @@ The delimiters parameter is optional.
 
 =cut
 
-# Scalar: double-quoted string
 sub stringify2 {
     my $self = shift; $self = $self->new() unless ref $self;
     local $_ = shift;
@@ -762,6 +777,8 @@ sub stringify2 {
 
 
 
+### Scalar: string ###
+
 =item C<stringify( value )>
 
 Returns the string the represents value.  It will be a double-quoted string
@@ -773,7 +790,6 @@ character.
 
 =cut
 
-# Scalar: string
 sub stringify {
     my $self = shift; $self = $self->new() unless ref $self;
     local $_ = shift;
@@ -809,6 +825,9 @@ sub stringify {
 
 
 
+### Scalar: number ###
+# Adapted from Perl FAQ "How can I output my numbers with commas added?"
+
 =item C<numify( value )>
 
 Returns value with seperators between the hundreds and thousands,
@@ -818,8 +837,6 @@ hundred-thousands and millions, etc.  Similarly for the fractional parts.
 
 =cut
 
-# Scalar: number
-# Adapted from Perl FAQ "How can I output my numbers with commas added?"
 sub numify {
     my $self = shift; $self = $self->new() unless ref $self;
     return $_[0] unless my $sep = $self->{num_sep};
@@ -837,6 +854,8 @@ sub numify {
 
 
 
+### Scalar ###
+
 =item C<scalarify( value )>
 
 Returns value as a scalar.  If value is not a reference, performs some magic
@@ -848,7 +867,6 @@ Handles reference loops.
 
 =cut
 
-# Scalar
 sub scalarify {
     my $self = shift; $self = $self->new() unless ref $self;
     my $s = shift;
@@ -904,6 +922,8 @@ sub scalarify {
 
 
 
+### Scalar: LValue ###
+
 =item C<lvalueify( value )>
 
 =cut
@@ -915,11 +935,12 @@ sub lvalueify {
 
 
 
+### Scalar: VString ###
+
 =item C<vstringify( value )>
 
 =cut
 
-# Scalar: VString
 sub vstringify {
     my $self = shift; $self = $self->new() unless ref $self;
     if ( defined $self->{vsep} ) {
@@ -931,11 +952,12 @@ sub vstringify {
 
 
 
+### Regexp ###
+
 =item C<regexpify( value, delimiters )>
 
 =cut
 
-# Regexp
 sub regexpify {
     my $self = shift; $self = $self->new() unless ref $self;
     local $_ = shift;
@@ -960,6 +982,8 @@ sub regexpify {
 
 
 
+### List/Array ###
+
 =item C<listify( value, value, ... )>
 
 Returns value(s) as a list.
@@ -968,7 +992,6 @@ Returns value(s) as a list.
 
 =cut
 
-# List/Array
 sub listify {
     my $self = shift; $self = $self->new() unless ref $self;
     if (1 == @_) {
@@ -1008,6 +1031,8 @@ sub arrayify {
 
 
 
+### Hash ###
+
 =item C<keyify( value )>
 
 Returns value as a key.  If value does not need to be quoted, it will not be.
@@ -1015,7 +1040,6 @@ Verifies that value is not a keyword.
 
 =cut
 
-# Hash
 sub keyify {
     my $self = shift; $self = $self->new() unless ref $self;
     local $_ = shift;
@@ -1110,6 +1134,9 @@ sub hashify  {
 }
 
 
+
+### Objects ###
+
 =item C<overloaded( $object )>
 
 Returns the first method from the C<overloads> list that $object
@@ -1117,7 +1144,6 @@ has overloaded.  If nothing is overloaded, then return nothing.
 
 =cut
 
-# Objects
 sub overloaded {
     my $self   = shift; $self = $self->new() unless ref $self;
     my $object = shift;
@@ -1181,6 +1207,8 @@ sub objectify {
 
 
 
+### Objects: IO ###
+
 =item C<ioify( value )>
 
 Returns a representation of value that is accurate if $io is STDIN, STDOUT,
@@ -1188,7 +1216,6 @@ or STDERR.  Otherwise, returns the C<io> setting.
 
 =cut
 
-# Objects: IO
 sub ioify {
     my $self = shift; $self = $self->new() unless ref $self;
     my $io   = shift;
@@ -1211,6 +1238,8 @@ sub ioify {
 
 
 
+### Other ###
+
 =item C<codeify( value )>
 
 Returns a subroutine definition that is not likely to encode value.
@@ -1219,7 +1248,6 @@ Returns a subroutine definition that is not likely to encode value.
 
 =cut
 
-# Other
 sub codeify   {
     my $self = shift; $self = $self->new() unless ref $self;
     return $self->{code};
