@@ -579,7 +579,7 @@ sub get {
 #   * punctuation
 #   * control character
 #   * control word
-my $sigils     = '[\@\%\$]';
+my $sigils     = '[\\x24\\x25\\x40]'; # $%@
 my $package    = '[[:alpha:]]\w*(?:\::\w+)*';
 my $word       = '[[:alpha:]_]\w*';
 my $digits     = '\d+';
@@ -964,7 +964,8 @@ sub regexpify {
     $self->{tr3} ||= "tr\\$self->{quote3}\\$self->{quote3}\\";
     my $quoter = eval $self->{tr3} // die $@;
     my ( $open, $close )
-        = $self->_get_delim( shift // $quoter ? $self->_find_q($_) : $self->{quote3} );
+        = $self->_get_delim(
+            shift // $quoter ? $self->_find_q($_) : $self->{quote3} );
 
     # Everything but the quotes should be escaped already.
     s/([$open$close])/\\$1/g;
@@ -1177,7 +1178,7 @@ sub objectify {
 
     my $data;
     if ( my $method = $self->overloaded($object) ) {
-        $data = $self->scalarify( $object->$method() );
+        $data = $self->scalarify( \$object->$method() );
     } else {
         $data = Scalar::Util::reftype $object;
 
@@ -1187,7 +1188,7 @@ sub objectify {
         if    ( $data eq 'ARRAY' )  { $data = $self->arrayify( [@$object] ) }
         elsif ( $data eq 'CODE' )   { $data = $self->codeify(    $object  ) }
         elsif ( $data eq 'FORMAT' ) { $data = $self->formatify(  $object  ) }
-        elsif ( $data eq 'GLOB' )   { $data = $self->refify(     $object  ) }
+        elsif ( $data eq 'GLOB' )   { $data = $self->globify(    $object  ) }
         elsif ( $data eq 'HASH' )   { $data = $self->hashify(  {%$object} ) }
         elsif ( $data eq 'IO' )     { $data = $self->ioify(      $object  ) }
         elsif ( $data eq 'REF' )    { $data = $self->refify(     $object  ) }
@@ -1264,7 +1265,8 @@ Returns value as reference.
 sub refify    {
     my $self = shift; $self = $self->new() unless ref $self;
     local $_ = shift;
-    return subst( $self->{reference}, $self->scalarify($$_) );
+    $_ = $$_ if ref;
+    return subst( $self->{reference}, $self->scalarify($_) );
 }
 
 
