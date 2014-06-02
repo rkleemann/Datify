@@ -177,7 +177,7 @@ An example:
  sub beautify {
      my $source = shift;
 
-     my ($dest, stderr);
+     my ($dest, $stderr);
      Perl::Tidy::perltidy(
          argv => [ qw(
              --noprofile
@@ -450,7 +450,7 @@ support decompiling code to make a complete representation.
 =item I<format>  => B<"format UNKNOWN =\n.\n">
 
 The representation of a format.  This module does not currently support
-showing the acutal repreenstation.
+showing the acutal representation.
 
 =back
 
@@ -1066,7 +1066,8 @@ sub keyify {
 
 =item C<keysort( $a, $b )>
 
-Not a method, but a sorting routine that sort numbers before strings.
+Not a method, but a sorting routine that sorts numbers (using C<< <=> >>)
+before strings (using C<cmp>).
 
 =cut
 
@@ -1212,8 +1213,8 @@ sub objectify {
 
 =item C<ioify( value )>
 
-Returns a representation of value that is accurate if $io is STDIN, STDOUT,
-or STDERR.  Otherwise, returns the C<io> setting.
+Returns a representation of value that is accurate if C<value> is
+STDIN, STDOUT, or STDERR.  Otherwise, returns the C<io> setting.
 
 =cut
 
