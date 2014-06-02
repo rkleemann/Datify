@@ -134,7 +134,8 @@ my %SETTINGS = (
     io        => '*UNKNOWN{IO}',
 
     # Code options
-    code    => 'sub {...}',
+    code    => 'sub {$_}',
+    body    => '...',
 
     # Format options
     format  => "format UNKNOWN =\n.\n",
@@ -434,10 +435,17 @@ The representation of unknown IO objects.
 
 =over
 
-=item I<code>    => B<'sub {...}'>
+=item I<code>    => B<'sub {$_}'>
 
 The representation of a code reference.  This module does not currently
-support decompiling code to make a complete representation.
+support decompiling code to make a complete representation, but if passed
+a representation, can wrap it in this.
+
+=item I<body>    => B<'...'>
+
+The representation of the body to a code reference.
+This module does not currently support decompiling code to make a
+complete representation.
 
 =back
 
@@ -1248,11 +1256,25 @@ Returns a subroutine definition that is not likely to encode value.
 
  Datify->codeify( \&subroutine ) # 'sub {...}'
 
+However,
+if C<value> is a string, then wrap that string with C<code>,
+or
+if C<value> is a reference to something other than C<CODE>,
+represent that reference by wrapping it with C<code>.
+
 =cut
 
 sub codeify   {
     my $self = shift; $self = $self->new() unless ref $self;
-    return $self->{code};
+    if ( ! @_ || 'CODE' eq ref $_[0] ) {
+        return subst $self->{code}, $self->{body};
+    } else {
+        my $code = shift;
+        if ( ! defined $code || ref $code ) {
+            $code = $self->scalarify($code);
+        }
+        return subst $self->{code}, $code;
+    }
 }
 
 
