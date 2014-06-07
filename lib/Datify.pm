@@ -801,6 +801,7 @@ character.
 sub stringify {
     my $self = shift; $self = $self->new() unless ref $self;
     local $_ = shift;
+    local $@ = undef;
 
     if ( $self->{quote} ) {
         return $self->stringify1($_) if $self->{quote1} eq $self->{quote};
@@ -969,6 +970,8 @@ sub vstringify {
 sub regexpify {
     my $self = shift; $self = $self->new() unless ref $self;
     local $_ = shift;
+    local $@ = undef;
+
     $self->{tr3} ||= "tr\\$self->{quote3}\\$self->{quote3}\\";
     my $quoter = eval $self->{tr3} // die $@;
     my ( $open, $close )
