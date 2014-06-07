@@ -1452,6 +1452,10 @@ __DATA__
 
 No known bugs.
 
+If you believe you've discovered a bug, please contact me via my
+CPAN address.  You can also view, and possibly update the code
+at it's GitHub repository: L<https://github.com/rkleemann/Datify>.
+
 =head1 TODO
 
 =over
