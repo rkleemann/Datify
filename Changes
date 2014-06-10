@@ -1,0 +1,7 @@
+Revision history for Datify.
+
+{{$NEXT}}
+
+ - Updated to use several Dist::Zilla features and plugins.
+ - Improved documentation.
+

@@ -2,6 +2,7 @@ use v5.14;
 
 package Datify;
 # ABSTRACT: Simple stringification of data.
+# VERSION
 
 =head1 SYNOPSIS
 
