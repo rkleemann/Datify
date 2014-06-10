@@ -7,8 +7,8 @@ package Datify;
 
  use Datify;
 
- my $datify = Datify->new( ... );   # See Options below
- $datify = $datify->set( ... );     # See Options below
+ my $datify = Datify->new( ... );   # See OPTIONS below
+ $datify = $datify->set( ... );     # See OPTIONS below
 
  print $datify->varify( data => [...] ), "\n";  # "@data = (...);\n"
 
@@ -20,7 +20,7 @@ package Datify;
 =head1 DESCRIPTION
 
 C<Datify> is very similar to L<Data::Dumper>, except that it's
-easier to use, has better formatting and options, and is invented here.
+easier to use, and has better formatting and options.
 
 =cut
 
@@ -33,23 +33,7 @@ use Scalar::Util    ();#qw(blessed looks_like_number refaddr);
 use String::Tools   qw(subst);
 use Sub::Name       ();#qw(subname);
 
-=head1 OPTIONS
-
-The following options can be set as part of C<new> or with C<set>.
-The default values are listed below.
-
-=cut
-
 my %SETTINGS;
-
-%SETTINGS = (
-    %SETTINGS,
-
-    # Format options
-    format  => "format UNKNOWN =\n.\n",
-);
-
-
 
 
 =method C<< add_handler( 'Class::Name' => \&code_ref ) >>
@@ -83,6 +67,8 @@ sub add_handler {
 
 Create a C<Datify> object with the following options.
 
+See L</OPTIONS> for a description of the options and their default values.
+
 =cut
 
 sub new {
@@ -100,10 +86,12 @@ sub new {
 
 =method C<< set( name => value, name => value, ... ) >>
 
-Change the L</Options> settings.
+Change the L</OPTIONS> settings.
 When called as a class method, changes default options.
 When called as an object method, changes the settings and returns a
 new object.
+
+See L</OPTIONS> for a description of the options and their default values.
 
 B<NOTE:> When called as a object method, this returns a new instance
 with the values set, so you will need to capture the return if you'd like to
@@ -514,8 +502,8 @@ or they may be interpreted as variable interpolation.
 
 How long a string needs to be before it's considered long.
 See L</stringify( value )>.
-Change to a false value to mean no string is long.
-Change to a negative value to mean every string is long.
+Change to a false value to indicate no string is long.
+Change to a negative value to indicate every string is long.
 
 =item I<encode>  => B<<
 {
@@ -770,6 +758,8 @@ How to generate a LValue.
 
 =method C<lvalueify( value )>
 
+Returns an approximate representation of what the lvalue is.
+
 =cut
 
 sub lvalueify {
@@ -808,6 +798,8 @@ C<< vformat => 'v%*vd', vsep => '.' >>.
 
 =method C<vstringify( value )>
 
+A representation of the VString, in dotted notation.
+
 =cut
 
 sub vstringify {
@@ -845,6 +837,8 @@ sub vstringify {
 );
 
 =method C<regexpify( value, delimiters )>
+
+A representation of the C<Regexp> in C<value>.
 
 =cut
 
@@ -1126,8 +1120,8 @@ See L<overload> for more information on overloading.
 
 =item I<object>     => B<'bless($data, $class_str)'>
 
-The representation of a object.  Other possibilities include
-C<'$class($data)'> or C<'$class->new($data)'>.
+The representation of an object.  Other possibilities include
+C<'$class($data)'> or C<< '$class->new($data)' >>.
 
 =item I<io>         => B<'*UNKNOWN{IO}'>
 
@@ -1341,6 +1335,13 @@ showing the acutal representation.
 
 =cut
 
+%SETTINGS = (
+    %SETTINGS,
+
+    # Format options
+    format  => "format UNKNOWN =\n.\n",
+);
+
 =method C<formatify( value )>
 
 Returns a value that is not completely unlike value.
@@ -1488,7 +1489,17 @@ sub _cache {
 
 __END__
 
-=todo Handle formats better.
+=head1 TODO
 
-=also L<Data::Dumper>
+=over
+
+=item *
+
+Handle formats better.
+
+=back
+
+=head1 SEE ALSO
+
+L<Data::Dumper>
 
