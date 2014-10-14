@@ -962,9 +962,9 @@ sub keyify {
     $self->{keyword_set} = { map { $_ => 1 } @{ $self->{keywords} } }
         unless $self->{keyword_set};
 
-    if ( Scalar::Util::looks_like_number($_)
-        || ( /^-?[[:alpha:]_]\w*$/ && ! $self->{keyword_set}{$_} ) )
-    {
+    if ( Scalar::Util::looks_like_number($_) ) {
+        return $self->numify($_);
+    } elsif ( /^-?[[:alpha:]_]\w*$/ && ! $self->{keyword_set}{$_} ) ) {
         # If the key would be autoquoted by the fat-comma (=>),
         # then there is no need to quote it.
 
