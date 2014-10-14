@@ -964,7 +964,7 @@ sub keyify {
 
     if ( Scalar::Util::looks_like_number($_) ) {
         return $self->numify($_);
-    } elsif ( /^-?[[:alpha:]_]\w*$/ && ! $self->{keyword_set}{$_} ) ) {
+    } elsif ( /^-?[[:alpha:]_]\w*$/ && ! $self->{keyword_set}{$_} ) {
         # If the key would be autoquoted by the fat-comma (=>),
         # then there is no need to quote it.
 
@@ -1455,18 +1455,17 @@ sub _name_and_position {
     my $var = $self->{name};
     my $sigil = substr $var, 0, 1;
     if ( $sigil eq '@' || $sigil eq '%' ) {
-        if ( $pos ) {
+        if ($pos) {
             $var = sprintf '$%s%s', substr($var, 1), $pos;
         } else {
             $var = subst( $self->{reference}, $var );
         }
-    }
-    else {
+    } elsif ($pos) {
         $var = subst(
             $self->{dereference},
             referent => $var,
             place    => $pos
-        ) if $pos;
+        );
     }
 
     return $var;
