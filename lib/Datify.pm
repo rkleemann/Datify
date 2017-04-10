@@ -656,12 +656,14 @@ sub numify {
     return $_[0] unless my $sep = $self->{num_sep};
     local $_ = shift;
 
+    return $_ unless defined() and Scalar::Util::looks_like_number($_);
+
     # Fractional portion
-            s{^([-+]?\d*\.\d\d)(\d+)}              [${1}$sep${2}];
-    1 while s{^([-+]?\d*\.(?:\d+$sep)+\d\d\d)(\d+)}[${1}$sep${2}];
+            s{^(\s*[-+]?\d*\.\d\d)(\d+)}              [${1}$sep${2}];
+    1 while s{^(\s*[-+]?\d*\.(?:\d+$sep)+\d\d\d)(\d+)}[${1}$sep${2}];
 
     # Whole portion
-    1 while s{^([-+]?\d+)(\d{3})}                  [${1}$sep${2}];
+    1 while s{^(\s*[-+]?\d+)(\d{3})}                  [${1}$sep${2}];
 
     return $_;
 }
