@@ -357,6 +357,10 @@ Returns the string that should be used for an undef value.
 
 sub undefify {
     my $self = shift; $self = $self->new() unless ref $self;
+    if (@_) {
+        local $_ = shift;
+        return $self->scalarify($_) if defined;
+    }
     return $self->{null};
 }
 
@@ -415,6 +419,8 @@ The delimiters parameter is optional.
 sub stringify1 {
     my $self = shift; $self = $self->new() unless ref $self;
     local $_ = shift;
+    $_ = "$_" if ref;
+    return $self->undefify unless defined;
     my ( $open, $close ) = $self->_get_delim( shift // $self->{quote1} );
 
     # single-quote and backslash.
@@ -445,6 +451,8 @@ The delimiters parameter is optional.
 sub stringify2 {
     my $self = shift; $self = $self->new() unless ref $self;
     local $_ = shift;
+    $_ = "$_" if ref;
+    return $self->undefify unless defined;
     my ( $open, $close ) = $self->_get_delim( shift // $self->{quote2} );
 
     my $sigils = $self->{sigils} =~ s/(.)/$self->_encode($1)/egsr;
@@ -587,6 +595,8 @@ character.
 sub stringify {
     my $self = shift; $self = $self->new() unless ref $self;
     local $_ = shift;
+    $_ = "$_" if ref;
+    return $self->undefify unless defined;
     local $@ = undef;
 
     if ( $self->{quote} ) {
@@ -656,7 +666,8 @@ sub numify {
     return $_[0] unless my $sep = $self->{num_sep};
     local $_ = shift;
 
-    return $_ unless defined() and Scalar::Util::looks_like_number($_);
+    return $self->scalarify($_)
+        unless defined() and Scalar::Util::looks_like_number($_);
 
     # Fractional portion
             s{^(\s*[-+]?\d*\.\d\d)(\d+)}              [${1}$sep${2}];
