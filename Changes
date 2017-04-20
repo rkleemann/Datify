@@ -3,6 +3,8 @@ Revision history for Datify.
 {{$NEXT}}
 
  - Changed keyify to format numbers with numify, rather than as strings.
+ - Added Datify::Path, for outputting data like filesystem paths.
+ - Changed Datify encode to use "byte" and "wide" rather than 255 and 65_535.
 
 0.14.163  2014-06-12
 

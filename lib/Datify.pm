@@ -515,8 +515,8 @@ Change to a negative value to indicate every string is long.
 12 => '\f',
 13 => '\r',
 27 => '\e',
-255 => '\x%02x',
-65535 => '\x{%04x}'
+byte => '\x%02x',
+wide => '\x{%04x}'
 }
 >>
 
@@ -547,16 +547,16 @@ which character would work best.
     sigils  => '$@',
     longstr => 1_000,
     encode  => {
-        0x00    => '\\0',
-        0x07    => '\\a',
-        #0x08    => '\\b',   # Does \b mean backspace or word-boundary?
-        0x09    => '\\t',
-        0x0a    => '\\n',
-        0x0c    => '\\f',
-        0x0d    => '\\r',
-        0x1b    => '\\e',
-        0xff    => '\\x%02x',
-        0xffff  => '\\x{%04x}',
+        0x00 => '\\0',
+        0x07 => '\\a',
+        #0x08 => '\\b',   # Does \b mean backspace or word-boundary?
+        0x09 => '\\t',
+        0x0a => '\\n',
+        0x0c => '\\f',
+        0x0d => '\\r',
+        0x1b => '\\e',
+        byte => '\\x%02x',
+        wide => '\\x{%04x}',
     },
 
     do {
@@ -982,13 +982,13 @@ before strings (using C<cmp>).
 
 =cut
 
-sub keysort {
-    my $na = Scalar::Util::looks_like_number($a);
-    my $nb = Scalar::Util::looks_like_number($b);
-    if ( $na && $nb ) { return $a <=> $b }
+sub keysort($$) {
+    my $na = Scalar::Util::looks_like_number($_[0]);
+    my $nb = Scalar::Util::looks_like_number($_[1]);
+    if ( $na && $nb ) { return $_[0] <=> $_[1] }
     elsif ( $na )     { return -1 }
     elsif ( $nb )     { return +1 }
-    else              { return $a cmp $b }
+    else              { return $_[0] cmp $_[1] }
 }
 
 
@@ -1408,19 +1408,19 @@ sub _get_delim {
 
 sub _encode {
     my $self = shift;
-    my $o    = ord shift;
+    my $ord  = ord shift;
 
-    my $e;
+    my $encoding;
     my $encodings = $self->{encode};
-    if ( exists $encodings->{$o} ) {
-        $e = $encodings->{$o};
-    } elsif ( $o <= 255 ) {
-        $e = $encodings->{255};
+    if ( exists $encodings->{$ord} ) {
+        return $encodings->{$ord};
+    } elsif ( $ord <= 255 ) {
+        $encoding = $encodings->{byte};
     } else {
-        $e = $encodings->{65535} // $encodings->{255};
+        $encoding = $encodings->{wide} // $encodings->{byte};
     }
 
-    return sprintf $e, $o;
+    return sprintf $encoding, $ord;
 }
 
 # Find a good character to use for delimiting q or qq.
