@@ -30,12 +30,11 @@ use warnings;
 
 use Carp            ();#qw(croak);
 use List::Util      ();#qw(reduce sum);
-use Scalar::Util    ();#qw(blessed looks_like_number refaddr);
+use Scalar::Util    ();#qw(blessed looks_like_number refaddr reftype);
 use String::Tools   qw(subst);
 use Sub::Name       ();#qw(subname);
 
 my %SETTINGS;
-
 
 =method C<< add_handler( 'Class::Name' => \&code_ref ) >>
 
@@ -277,7 +276,7 @@ not a hash:
 =cut
 
 sub varify {
-    my $self = shift; $self = $self->new() unless ref $self;
+    my $self = &self;
     my ($sigil, $name);
     if ( defined $_[0] && !ref $_[0] ) {
         ( $sigil, $name )
@@ -356,7 +355,8 @@ Returns the string that should be used for an undef value.
 =cut
 
 sub undefify {
-    my $self = shift; $self = $self->new() unless ref $self;
+    my $self = &self;
+    return $self->scalarify(shift) if @_ and defined($_[0]);
     return $self->{null};
 }
 
@@ -395,7 +395,7 @@ of value.
 =cut
 
 sub booleanify {
-    my $self = shift; $self = $self->new() unless ref $self;
+    my $self = &self;
     local $_ = shift;
     return $self->undefify unless defined;
     return $_ ? $self->{true} : $self->{false};
@@ -413,8 +413,10 @@ The delimiters parameter is optional.
 =cut
 
 sub stringify1 {
-    my $self = shift; $self = $self->new() unless ref $self;
+    my $self = &self;
     local $_ = shift;
+    $_ = "$_" if ref;
+    return $self->undefify unless defined;
     my ( $open, $close ) = $self->_get_delim( shift // $self->{quote1} );
 
     # single-quote and backslash.
@@ -443,8 +445,10 @@ The delimiters parameter is optional.
 =cut
 
 sub stringify2 {
-    my $self = shift; $self = $self->new() unless ref $self;
+    my $self = &self;
     local $_ = shift;
+    $_ = "$_" if ref;
+    return $self->undefify unless defined;
     my ( $open, $close ) = $self->_get_delim( shift // $self->{quote2} );
 
     my $sigils = $self->{sigils} =~ s/(.)/$self->_encode($1)/egsr;
@@ -585,8 +589,10 @@ character.
 =cut
 
 sub stringify {
-    my $self = shift; $self = $self->new() unless ref $self;
+    my $self = &self;
     local $_ = shift;
+    $_ = "$_" if ref;
+    return $self->undefify unless defined;
     local $@ = undef;
 
     if ( $self->{quote} ) {
@@ -627,7 +633,23 @@ sub stringify {
 
 =over
 
-=item I<num_sep> => B<'_'>
+=item I<infinite>  => B<"'inf'">
+
+What to use to indicate infinity.
+
+=back
+
+=over
+
+=item I<nonnumber> => B<"'nan'">
+
+What to use to indicate this is not a number.
+
+=back
+
+=over
+
+=item I<num_sep>   => B<'_'>
 
 What character to use to seperate sets of numbers.
 
@@ -639,8 +661,46 @@ What character to use to seperate sets of numbers.
     %SETTINGS,
 
     # Number options
-    num_sep => '_',
+    infinite  => "'inf'",
+    nonnumber => "'nan'",
+    num_sep   => '_',
 );
+
+=method C<is_numeric( value )>
+
+Returns true  if value is can be numeric,
+returns false if the value is not numeric (including inf and nan),
+returns undef if the value is undefined.
+
+ Datify->is_numeric(1234.5678901)       #          true
+ Datify->is_numeric("inf")              #          false
+ Datify->is_numeric( "inf" / "inf" )    # "nan" => false
+ Datify->is_numeric(undef)              #          undef
+
+=cut
+
+sub is_numeric {
+    my $self = &self;
+    local $_ = shift;
+
+    return undef unless defined;
+
+    if (ref) {
+        if ( my $method = $self->overloaded($_) ) {
+            $_ = $_->$method();
+        }
+        else {
+            return '';
+        }
+    }
+
+    # The "defined" and Regexp ensure that we're not
+    # considering inf, nan, and their variants as numeric
+    # (even though looks_like_number does)
+    return Scalar::Util::looks_like_number($_)
+        && defined( $_ <=> 0 )
+        && !/^\s*[+-]?(?i:inf(?:inity)?|nan)\s*$/;
+}
 
 =method C<numify( value )>
 
@@ -649,21 +709,42 @@ hundred-thousands and millions, etc.  Similarly for the fractional parts.
 
  Datify->numify(1234.5678901) # "1_234.56_789_01"
 
+Also returns the string that should be used for the C<infinite>
+and C<nonnumber> values, the C<null> value for undefined values,
+and C<nonnumber> value for all non-numbers.
+
+ Datify->numify("inf")              # 'inf'
+ Datify->numify( "inf" / "inf" )    # 'nan'
+ Datify->numify(undef)              # 'undef'
+ Datify->numify('apple')            # 'nan'
+
 =cut
 
 sub numify {
-    my $self = shift; $self = $self->new() unless ref $self;
-    return $_[0] unless my $sep = $self->{num_sep};
+    my $self = &self;
     local $_ = shift;
 
-    # Fractional portion
-            s{^([-+]?\d*\.\d\d)(\d+)}              [${1}$sep${2}];
-    1 while s{^([-+]?\d*\.(?:\d+$sep)+\d\d\d)(\d+)}[${1}$sep${2}];
+    return $self->undefify unless defined;
 
-    # Whole portion
-    1 while s{^([-+]?\d+)(\d{3})}                  [${1}$sep${2}];
+    if ( $self->is_numeric($_) ) {
+        return $_ unless my $sep = $self->{num_sep};
 
-    return $_;
+        # Fractional portion
+                s{^(\s*[-+]?\d*\.\d\d)(\d+)}              [${1}$sep${2}];
+        1 while s{^(\s*[-+]?\d*\.(?:\d+$sep)+\d\d\d)(\d+)}[${1}$sep${2}];
+
+        # Whole portion
+        1 while s{^(\s*[-+]?\d+)(\d{3})}                  [${1}$sep${2}];
+
+        return $_;
+    }
+    elsif ( Scalar::Util::looks_like_number($_) ) {
+        if ( not defined( $_ <=> 0 ) ) { return       $self->{nonnumber} }
+        elsif ( $_ ==  'inf' )         { return       $self->{infinite}  }
+        elsif ( $_ == -'inf' )         { return '-' . $self->{infinite}  }
+    }
+
+    return $self->{nan};
 }
 
 
@@ -682,7 +763,7 @@ Handles reference loops.
 =cut
 
 sub scalarify {
-    my $self = shift; $self = $self->new() unless ref $self;
+    my $self = &self;
     my $s = shift;
 
     return $self->undefify unless defined $s;
@@ -764,7 +845,7 @@ Returns an approximate representation of what the lvalue is.
 =cut
 
 sub lvalueify {
-    my $self = shift; $self = $self->new() unless ref $self;
+    my $self = &self;
     return subst( $self->{lvalue}, lvalue => $self->stringify(shift) );
 }
 
@@ -804,7 +885,7 @@ A representation of the VString, in dotted notation.
 =cut
 
 sub vstringify {
-    my $self = shift; $self = $self->new() unless ref $self;
+    my $self = &self;
     if ( defined $self->{vsep} ) {
         return sprintf $self->{vformat}, $self->{vsep}, shift;
     } else {
@@ -844,7 +925,7 @@ A representation of the C<Regexp> in C<value>.
 =cut
 
 sub regexpify {
-    my $self = shift; $self = $self->new() unless ref $self;
+    my $self = &self;
     local $_ = shift;
     local $@ = undef;
 
@@ -881,9 +962,9 @@ Returns value(s) as a list.
 =cut
 
 sub listify {
-    my $self = shift; $self = $self->new() unless ref $self;
+    my $self = &self;
     if (1 == @_) {
-        my $ref = ref $_[0];
+        my $ref = Scalar::Util::reftype $_[0];
         if    ( $ref eq 'HASH' )  { @_ = %{ +shift } }
         elsif ( $ref eq 'ARRAY' ) {
             my $array = shift;
@@ -937,7 +1018,7 @@ Returns value(s) as an array.
 =cut
 
 sub arrayify {
-    my $self = shift; $self = $self->new() unless ref $self;
+    my $self = &self;
     return subst( $self->{array_ref}, $self->listify(@_) );
 }
 
@@ -953,7 +1034,7 @@ Verifies that value is not a keyword.
 =cut
 
 sub keyify {
-    my $self = shift; $self = $self->new() unless ref $self;
+    my $self = &self;
     local $_ = shift;
 
     return $self->undefify unless defined;
@@ -983,8 +1064,8 @@ before strings (using C<cmp>).
 =cut
 
 sub keysort($$) {
-    my $na = Scalar::Util::looks_like_number($_[0]);
-    my $nb = Scalar::Util::looks_like_number($_[1]);
+    my $na = Scalar::Util::looks_like_number($_[0]) && defined( $_[0] <=> 0 );
+    my $nb = Scalar::Util::looks_like_number($_[1]) && defined( $_[1] <=> 0 );
     if ( $na && $nb ) { return $_[0] <=> $_[1] }
     elsif ( $na )     { return -1 }
     elsif ( $nb )     { return +1 }
@@ -1002,9 +1083,9 @@ Returns value(s) as a pair.
 =cut
 
 sub pairify {
-    my $self = shift; $self = $self->new() unless ref $self;
+    my $self = &self;
     if (1 == @_) {
-        my $ref = ref $_[0];
+        my $ref = Scalar::Util::reftype $_[0];
         if    ( $ref eq 'ARRAY' ) { @_ = @{ +shift } }
         elsif ( $ref eq 'HASH' )  {
             my $hash = shift;
@@ -1079,7 +1160,7 @@ Returns value(s) as a hash.
 =cut
 
 sub hashify  {
-    my $self = shift; $self = $self->new() unless ref $self;
+    my $self = &self;
     return subst( $self->{hash_ref}, $self->pairify(@_) );
 }
 
@@ -1098,7 +1179,8 @@ sub overloaded {
     my $self   = shift; $self = $self->new() unless ref $self;
     my $object = shift;
 
-    return unless overload::Overloaded($object);
+    return unless Scalar::Util::blessed($object)
+        && overload::Overloaded($object);
 
     foreach my $overload ( @{ $self->{overloads} } ) {
         if ( my $method = overload::Method( $object => $overload ) ) {
@@ -1199,7 +1281,7 @@ STDIN, STDOUT, or STDERR.  Otherwise, returns the C<io> setting.
 =cut
 
 sub ioify {
-    my $self = shift; $self = $self->new() unless ref $self;
+    my $self = &self;
     my $io   = shift;
     foreach my $ioe (qw(IN OUT ERR)) {
         no strict 'refs';
@@ -1265,7 +1347,7 @@ represent that reference by wrapping it with C<code>.
 =cut
 
 sub codeify   {
-    my $self = shift; $self = $self->new() unless ref $self;
+    my $self = &self;
     if ( ! @_ || 'CODE' eq ref $_[0] ) {
         return subst $self->{code}, $self->{body};
     } else {
@@ -1315,7 +1397,7 @@ Returns value as reference.
 =cut
 
 sub refify    {
-    my $self = shift; $self = $self->new() unless ref $self;
+    my $self = &self;
     local $_ = shift;
     $_ = $$_ if ref;
     return subst( $self->{reference}, $self->scalarify($_) );
@@ -1350,7 +1432,7 @@ Returns a value that is not completely unlike value.
 =cut
 
 sub formatify {
-    my $self = shift; $self = $self->new() unless ref $self;
+    my $self = &self;
     #Carp::croak "Unhandled type: ", ref shift;
     return $self->{format};
 }
@@ -1365,7 +1447,7 @@ For normal values, remove the leading C<main::>.
 =cut
 
 sub globify   {
-    my $self = shift; $self = $self->new() unless ref $self;
+    my $self = &self;
     my $name = '' . shift;
     if ( $name =~ /^\*$package\::(?:$word|$digits)?$/ ) {
         $name =~ s/^\*main::/*::/;
@@ -1378,6 +1460,10 @@ sub globify   {
 ### Internal ###
 ### Do not use these methods outside of this package,
 ### they are subject to change or disappear at any time.
+sub self {
+    my $self = shift;
+    return ref $self ? $self : $self->new();
+}
 sub _nameify {
     local $_ = shift;
     s/::/_/g;
