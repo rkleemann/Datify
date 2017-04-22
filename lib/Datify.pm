@@ -1462,7 +1462,7 @@ sub globify   {
 ### they are subject to change or disappear at any time.
 sub self {
     my $self = shift;
-    return ref $self ? $self ? $self->new();
+    return ref $self ? $self : $self->new();
 }
 sub _nameify {
     local $_ = shift;
