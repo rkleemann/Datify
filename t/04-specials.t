@@ -15,7 +15,7 @@ my $datify = join(' ', qw(
     encode      =>   {0 => '\\\\0',  7 => '\\\\a',  9 => '\\\\t',
                      10 => '\\\\n', 12 => '\\\\f', 13 => '\\\\r',
                      27 => '\\\\e',
-                    byte => '\\\\x%02x', wide => '\\\\x{%04x}'},
+                     byte => '\\\\x%02x', wide => '\\\\x{%04x}'},
     false       => "''",
     format      => "format UNKNOWN =\\n.\\n",
     hash_ref    => '{$_}',

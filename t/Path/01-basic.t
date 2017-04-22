@@ -5,7 +5,7 @@ use Test::More tests => 4;
 ok require Datify::Path, 'Required Datify::Path';
 
 can_ok 'Datify::Path', qw(
-    flatten
+    _flatten
     pathify
     _pathify
 );
