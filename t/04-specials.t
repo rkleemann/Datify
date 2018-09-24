@@ -75,6 +75,20 @@ my @specials = (
 
     "format UNKNOWN =\n.\n" => *EMPTY_FORMAT{FORMAT} => 'format ref',
 );
+foreach my $stingified (qw( [] {} 'string' 123 456.78 )) {
+    my $thing = eval $stingified;
+    my $ref   = ref($thing);
+    my $repr  = $stingified;
+    if ( !$ref ) {
+        $thing = \do { 1; $thing };
+        $repr = '\\' . $repr;
+    }
+    push @specials,
+        qq!bless($repr, 'Test::${ref}::Object')!,
+        bless( $thing, "Test::${ref}::Object" ),
+        "a $ref object",
+        ;
+}
 
 for ( my $i = 0; $i < @specials - 1; $i += 3 ) {
     my ( $string, $special, $desc ) = @specials[ $i, $i + 1, $i + 2 ];
