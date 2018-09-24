@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 21;
+use Test::More tests => 96;
 
 ok require Datify, 'Required Datify';
 
