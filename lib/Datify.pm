@@ -28,11 +28,11 @@ easier to use, and has better formatting and options.
 use overload ();
 use warnings;
 
-use Carp            ();#qw(croak);
-use List::Util      ();#qw(reduce sum);
-use Scalar::Util    ();#qw(blessed looks_like_number refaddr reftype);
-use String::Tools   qw(subst);
-use Sub::Name       ();#qw(subname);
+use Carp               ();#qw( croak );
+use List::Util    1.40 ();#qw( reduce sum );
+use Scalar::Util  1.40 ();#qw( blessed looks_like_number refaddr reftype );
+use String::Tools    qw( subst );
+use Sub::Util     1.40 ();#qw( set_subname );
 
 my %SETTINGS;
 
@@ -56,7 +56,7 @@ sub add_handler {
     no strict 'refs';
     my $pkg  = shift || __PACKAGE__; $pkg = ref $pkg || $pkg;
     my $name = _nameify(shift);
-    *{$name} = Sub::Name::subname $name => shift;
+    *{$name} = Sub::Util::set_subname $name => shift;
 }
 
 
@@ -247,30 +247,30 @@ Some examples:
 
 Common case, determine the type and add the correct sigil to 'foo'.
 
- Datify->varify(   foo  => $foo )
+ Datify->varify(   foo  => $foo );
 
 Specify the type.
 
- Datify->varify( '$foo' => $foo )
+ Datify->varify( '$foo' => $foo );
 
 Handle a list: C<@foo = (1, 2, 3);>
 
- Datify->varify( '@foo' =>   1, 2, 3   )
- Datify->varify( '@foo' => [ 1, 2, 3 ] )
- Datify->varify(   foo  =>   1, 2, 3   )
- Datify->varify(   foo  => [ 1, 2, 3 ] )
+ Datify->varify( '@foo' =>   1, 2, 3   );
+ Datify->varify( '@foo' => [ 1, 2, 3 ] );
+ Datify->varify(   foo  =>   1, 2, 3   );
+ Datify->varify(   foo  => [ 1, 2, 3 ] );
 
 Handle a hash: C<< %foo = (a => 1, b => 2, c => 3); >>
 (B<Note>: Order may be rearranged.)
 
- Datify->varify( '%foo' =>   a => 1, b => 2, c => 3   )
- Datify->varify( '%foo' => { a => 1, b => 2, c => 3 } )
- Datify->varify(   foo  => { a => 1, b => 2, c => 3 } )
+ Datify->varify( '%foo' =>   a => 1, b => 2, c => 3   );
+ Datify->varify( '%foo' => { a => 1, b => 2, c => 3 } );
+ Datify->varify(   foo  => { a => 1, b => 2, c => 3 } );
 
 Keep in mind that without proper hints, this would be interpretted as a list,
 not a hash:
 
- Datify->varify(   foo  =>   a => 1, b => 2, c => 3   )
+ Datify->varify(   foo  =>   a => 1, b => 2, c => 3   );
  # "@foo = ('a', 1, 'b', 2, 'c', 3);"
 
 =cut
@@ -551,14 +551,15 @@ which character would work best.
     sigils  => '$@',
     longstr => 1_000,
     encode  => {
-        0x00 => '\\0',
-        0x07 => '\\a',
-        #0x08 => '\\b',   # Does \b mean backspace or word-boundary?
-        0x09 => '\\t',
-        0x0a => '\\n',
-        0x0c => '\\f',
-        0x0d => '\\r',
-        0x1b => '\\e',
+        map( { ord( eval qq!"$_"! ) => $_ } qw( \0 \a \t \n \f \r \e ) ),
+        #0x00 => '\\0',
+        #0x07 => '\\a',
+        ##0x08 => '\\b',   # Does \b mean backspace or word-boundary?
+        #0x09 => '\\t',
+        #0x0a => '\\n',
+        #0x0c => '\\f',
+        #0x0d => '\\r',
+        #0x1b => '\\e',
         byte => '\\x%02x',
         wide => '\\x{%04x}',
     },
@@ -591,8 +592,8 @@ character.
 sub stringify {
     my $self = &self;
     local $_ = shift;
-    $_ = "$_" if ref;
     return $self->undefify unless defined;
+    $_ = "$_" if ref;
     local $@ = undef;
 
     if ( $self->{quote} ) {
@@ -637,17 +638,13 @@ sub stringify {
 
 What to use to indicate infinity.
 
-=back
+=item I<-infinite>  => B<"'-inf'">
 
-=over
+What to use to indicate negative infinity.
 
 =item I<nonnumber> => B<"'nan'">
 
 What to use to indicate this is not a number.
-
-=back
-
-=over
 
 =item I<num_sep>   => B<'_'>
 
@@ -662,6 +659,7 @@ What character to use to seperate sets of numbers.
 
     # Number options
     infinite  => "'inf'",
+    -infinite => "'-inf'",
     nonnumber => "'nan'",
     num_sep   => '_',
 );
@@ -672,10 +670,10 @@ Returns true  if value is can be numeric,
 returns false if the value is not numeric (including inf and nan),
 returns undef if the value is undefined.
 
- Datify->is_numeric(1234.5678901)       #          true
- Datify->is_numeric("inf")              #          false
- Datify->is_numeric( "inf" / "inf" )    # "nan" => false
- Datify->is_numeric(undef)              #          undef
+ Datify->is_numeric(1234.5678901);       #          true
+ Datify->is_numeric("inf");              #          false
+ Datify->is_numeric( "inf" / "inf" );    # "nan" => false
+ Datify->is_numeric(undef);              #          undef
 
 =cut
 
@@ -707,16 +705,17 @@ sub is_numeric {
 Returns value with seperators between the hundreds and thousands,
 hundred-thousands and millions, etc.  Similarly for the fractional parts.
 
- Datify->numify(1234.5678901) # "1_234.56_789_01"
+ Datify->numify(1234.5678901);    # "1_234.56_789_01"
 
-Also returns the string that should be used for the C<infinite>
-and C<nonnumber> values, the C<null> value for undefined values,
-and C<nonnumber> value for all non-numbers.
+Also returns the string that should be used for the C<infinite>,
+C<-infinite>, and C<nonnumber> values,
+the C<null> value for undefined values,
+and C<nonnumber> value for all not-a-numbers.
 
- Datify->numify("inf")              # 'inf'
- Datify->numify( "inf" / "inf" )    # 'nan'
- Datify->numify(undef)              # 'undef'
- Datify->numify('apple')            # 'nan'
+ Datify->numify('inf');              # 'inf'
+ Datify->numify( 'inf' / 'inf' );    # 'nan'
+ Datify->numify(undef);              # undef
+ Datify->numify('apple');            # 'nan'
 
 =cut
 
@@ -739,12 +738,12 @@ sub numify {
         return $_;
     }
     elsif ( Scalar::Util::looks_like_number($_) ) {
-        if ( not defined( $_ <=> 0 ) ) { return       $self->{nonnumber} }
-        elsif ( $_ ==  'inf' )         { return       $self->{infinite}  }
-        elsif ( $_ == -'inf' )         { return '-' . $self->{infinite}  }
+        if ( not defined( $_ <=> 0 ) ) { return $self->{nonnumber}  }
+        elsif ( $_ ==  'inf' )         { return $self->{infinite}   }
+        elsif ( $_ == -'inf' )         { return $self->{-infinite}  }
     }
 
-    return $self->{nan};
+    return $self->{nonnumber};
 }
 
 
@@ -957,7 +956,7 @@ sub regexpify {
 
 Returns value(s) as a list.
 
- Datify->listify( 1, 2, 3 ) # '1, 2, 3'
+ Datify->listify( 1, 2, 3 );    # '1, 2, 3'
 
 =cut
 
@@ -1013,7 +1012,7 @@ The representation of the separator between list elements.
 
 Returns value(s) as an array.
 
- Datify->arrayify( 1, 2, 3 ) # '[1, 2, 3]'
+ Datify->arrayify( 1, 2, 3 );    # '[1, 2, 3]'
 
 =cut
 
@@ -1063,22 +1062,98 @@ before strings (using C<cmp>).
 
 =cut
 
-sub keysort($$) {
-    my $na = Scalar::Util::looks_like_number($_[0]) && defined( $_[0] <=> 0 );
-    my $nb = Scalar::Util::looks_like_number($_[1]) && defined( $_[1] <=> 0 );
-    if ( $na && $nb ) { return $_[0] <=> $_[1] }
-    elsif ( $na )     { return -1 }
-    elsif ( $nb )     { return +1 }
-    else              { return $_[0] cmp $_[1] }
+sub keysort($$);
+BEGIN {
+    if ( $^V >= v5.16.0 ) {
+        *keysort = Sub::Util::set_subname(
+            keysort => sub($$) {
+                my $na = Scalar::Util::looks_like_number( $_[0] )
+                    && defined( $_[0] <=> 0 );
+                my $nb = Scalar::Util::looks_like_number( $_[1] )
+                    && defined( $_[1] <=> 0 );
+                if ( $na && $nb ) { return $_[0] <=> $_[1] }
+                elsif ($na) { return -1 }
+                elsif ($nb) { return +1 }
+                else {
+                    return CORE::fc( $_[0] ) cmp CORE::fc( $_[1] )
+                        ||           $_[0]   cmp           $_[1];
+                }
+            }
+        );
+    } else {
+        *keysort = Sub::Util::set_subname(
+            keysort => sub($$) {
+                my $na = Scalar::Util::looks_like_number( $_[0] )
+                    && defined( $_[0] <=> 0 );
+                my $nb = Scalar::Util::looks_like_number( $_[1] )
+                    && defined( $_[1] <=> 0 );
+                if ( $na && $nb ) { return $_[0] <=> $_[1] }
+                elsif ($na) { return -1 }
+                elsif ($nb) { return +1 }
+                else        { return $_[0] cmp $_[1] }
+            }
+        );
+    }
 }
 
 
+=method C<hashkeys( $hash )>
 
-=method C<pairify( value, value, ... )>
+Returns the keys of a hash,
+filtered (see L<< /I<keyfilter>        => B<undef> >>),
+and sorted (see L</keysort>).
+
+=cut
+
+sub hashkeys {
+    my $self = shift;
+    my $hash = shift;
+
+    my @keys = keys %$hash;
+    if ( my $ref = ref( my $keyfilter = $self->{keyfilter} ) ) {
+        my $keyfilternot     = !$self->{keyfilterdefault};
+        my $keyfilterdefault = !$keyfilternot;
+        if ( $ref eq 'ARRAY' || $ref eq 'HASH' ) {
+            my %keyfilterhash
+                = $ref eq 'ARRAY'
+                ? ( map { $_ => $keyfilternot } @$keyfilter )
+                : %$keyfilter;
+            $self->{keyfilter} = $keyfilter = sub {
+                exists $keyfilterhash{$_}
+                    ? $keyfilterhash{$_}
+                    : $keyfilterdefault;
+            };
+        } elsif ( $ref eq 'CODE' ) {
+            # No-op, just use the code provided
+        } elsif ( $ref eq 'Regexp' ) {
+            my $keyfilterregexp = $keyfilter;
+            $self->{keyfilter} = $keyfilter = sub {
+                m/$keyfilterregexp/ ? $keyfilternot : $keyfilterdefault;
+            };
+        } elsif ( $ref eq 'SCALAR' ) {
+            my $keyfiltervalue = $$keyfilter;
+            $self->{keyfilter} = $keyfilter = sub { $keyfiltervalue };
+        }
+        @keys = grep { $keyfilter->() } @keys;
+    }
+    if ( my $keysort = $self->{keysort} ) {
+        @keys = sort $keysort @keys;
+    }
+    return @keys;
+}
+
+sub hashkeyvals {
+    my $self = shift;
+    my $hash = shift;
+
+    return map { $_ => $hash->{$_} } $self->hashkeys($hash);
+}
+
+=method C<< pairify( value => value, ... ) >>
 
 Returns value(s) as a pair.
 
- Datify->pairify( a => 1, b => 2 ) # 'a => 1, b => 2'
+ Datify->pairify( a => 1, b => 2 );    # 'a => 1, b => 2'
 
 =cut
 
@@ -1092,10 +1167,7 @@ sub pairify {
             $self->{_cache}{ +Scalar::Util::refaddr $hash }
                 = $self->_name_and_position;
 
-            my $keysort = $self->{keysort};
-            @_ = $keysort
-                ? map { $_ => $hash->{$_} } sort $keysort keys %$hash
-                : %$hash;
+            @_ = $self->hashkeyvals($hash);
         }
     }
     # Use for loop in order to preserve the order of @_,
@@ -1118,21 +1190,46 @@ sub pairify {
 
 =over
 
-=item I<hash_ref>    => B<'{$_}'>
+=item I<hash_ref>         => B<'{$_}'>
 
 The representation of a hash reference.
 
-=item I<pair>        => B<< '$key => $value' >>
+=item I<pair>             => B<< '$key => $value' >>
 
 The representation of a pair.
 
-=item I<keysort>     => B<\&Datify::keysort>
+=item I<keyfilter>        => B<undef>
+
+A reference to an C<ARRAY>, C<CODE>, C<HASH>, C<Regexp>, or C<SCALAR>,
+which will be converted to a the appropriate code, and used to filter
+the keys in a hash via C<grep>.
+
+C<ARRAY> entries are changed into a C<HASH>,
+with the entries set to be the inverse of C<keyfilterdefault>.
+
+C<CODE> entires should look for the key name in C<$_>,
+and return a boolean value.
+
+C<HASH> entries should have a true or false value,
+to indicate if the entry should be included.
+
+C<Regexp> entries are matched, and if true, then return the inverse of
+C<$keyfilterdefault>.
+
+C<SCALAR> entries treat all values according to the boolean evaluation.
+
+=item I<keyfilterdefault> => B<1>
+
+When filtering keys in a hash, if the key is not found in the C<keyfilter>
+C<HASH> or C<ARRAY>, should it pass through or not?
+
+=item I<keysort>          => B<\&Datify::keysort>
 
 How to sort the keys in a hash.  This has a performance hit,
 but it makes the output much more readable.  See the description of
-L</keysort> below.
+L</keysort>.
 
-=item I<keywords>    => B<[qw(undef)]>
+=item I<keywords>         => B<[qw(undef)]>
 
 Any keywords that should be quoted, even though they may not need to be.
 
@@ -1144,18 +1241,20 @@ Any keywords that should be quoted, even though they may not need to be.
     %SETTINGS,
 
     # Hash options
-    hash_ref    => '{$_}',
-    pair        => '$key => $value',
-    keysort     => \&Datify::keysort,
-    keywords    => [qw(undef)],
-    #keyword_set => { 'undef' => 1 },
+    hash_ref         => '{$_}',
+    pair             => '$key => $value',
+    keysort          => \&Datify::keysort,
+    keyfilter        => undef,
+    keyfilterdefault => 1,
+    keywords         => [qw(undef)],
+    #keyword_set      => { 'undef' => 1 },
 );
 
 =method C<hashify( value, value, ... )>
 
 Returns value(s) as a hash.
 
- Datify->hashify( a => 1, b => 2 ) # '{a => 1, b => 2}'
+ Datify->hashify( a => 1, b => 2 );    # '{a => 1, b => 2}'
 
 =cut
 
@@ -1228,7 +1327,7 @@ The representation of unknown IO objects.
 
 Returns value as an object.
 
- Datify->objectify( $object ) # "bless({}, 'Object')"
+ Datify->objectify($object);    # "bless({}, 'Object')"
 
 =cut
 
@@ -1241,22 +1340,34 @@ sub objectify {
 
     my $data;
     if ( my $method = $self->overloaded($object) ) {
-        $data = $self->scalarify( \$object->$method() );
+        $data = $self->scalarify( $object->$method() );
+    } elsif ( my $keyvals = $object->can('_attrkeyvals') ) {
+        $data = subst( $self->{hash_ref},
+            $self->pairify( $object->$keyvals() ) );
     } else {
         $data = Scalar::Util::reftype $object;
 
         # Huh?!
         #if ( $data eq '' ) { return $self->scalarify( $object ) }
 
-        if    ( $data eq 'ARRAY' )  { $data = $self->arrayify( [@$object] ) }
+        if    ( $data eq 'HASH' )   {
+            # TODO: Look this up via meta-objects and such.
+            if ( my $attrkeys = $object->can('_attrkeys') ) {
+                my @attrs = $object->$attrkeys();
+                $data = subst( $self->{hash_ref},
+                    $self->pairify( map { $_ => $object->{$_} } @attrs ) );
+            } else {
+                                      $data = $self->hashify(  {%$object} )
+            }
+        }
+        elsif ( $data eq 'ARRAY' )  { $data = $self->arrayify( [@$object] ) }
         elsif ( $data eq 'CODE' )   { $data = $self->codeify(    $object  ) }
         elsif ( $data eq 'FORMAT' ) { $data = $self->formatify(  $object  ) }
         elsif ( $data eq 'GLOB' )   { $data = $self->globify(    $object  ) }
-        elsif ( $data eq 'HASH' )   { $data = $self->hashify(  {%$object} ) }
         elsif ( $data eq 'IO' )     { $data = $self->ioify(      $object  ) }
         elsif ( $data eq 'REF' )    { $data = $self->refify(     $object  ) }
         elsif ( $data eq 'Regexp' ) { $data = $self->regexpify(  $object  ) }
-        elsif ( $data eq 'SCALAR' ) { $data = $self->scalarify( $$object  ) }
+        elsif ( $data eq 'SCALAR' ) { $data = $self->refify(    $$object  ) }
 
         else { $data = "*UNKNOWN{$data}" } # ???
     }
@@ -1336,7 +1447,7 @@ complete representation.
 
 Returns a subroutine definition that is not likely to encode value.
 
- Datify->codeify( \&subroutine ) # 'sub {...}'
+ Datify->codeify( \&subroutine );    # 'sub {...}'
 
 However,
 if C<value> is a string, then wrap that string with C<code>,
