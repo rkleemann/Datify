@@ -154,7 +154,7 @@ sub get {
 
 =item I<name>       => B<'$self'>
 
-The neame of the default variable.
+The name of the default variable.
 This is also set as the first parameter to C<varify>.
 
 =item I<assign>     => B<'$var = $value;'>
