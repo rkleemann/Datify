@@ -2,11 +2,15 @@ Revision history for Datify.
 
 {{$NEXT}}
 
+ - Changed _encode() to accommodate UTF-8 and UTF-16 encoding.
+
+0.18.277  2018-10-04
+
  - Added META.json
 
 v0.18.270 2018-09-27
 
- - Changed keyify to format numbers with numify, rather than as strings.
+ - Changed keyify() to format numbers with numify(), rather than as strings.
  - Added Datify::Path, for outputting data like filesystem paths.
  - Changed Datify encode to use "byte" and "wide" rather than 255 and 65_535.
  - Added functionality to filter hash entries and object attributes.

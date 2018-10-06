@@ -415,12 +415,14 @@ The delimiters parameter is optional.
 sub stringify1 {
     my $self = &self;
     local $_ = shift;
-    $_ = "$_" if ref;
     return $self->undefify unless defined;
+    $_ = "$_" if ref;
     my ( $open, $close ) = $self->_get_delim( shift // $self->{quote1} );
 
-    # single-quote and backslash.
-    s/([$open$close\x5c])/\\$1/g;
+    $self->{encode} = $self->{encode1};
+    my $to_encode = $self->_to_encode( $open, $close );
+    s/([$to_encode])/$self->_encode($1)/eg;
+    delete $self->{encode};
 
     if ( $self->{quote1} ne $open ) {
         if ( $open =~ /\w/ ) {
@@ -447,15 +449,20 @@ The delimiters parameter is optional.
 sub stringify2 {
     my $self = &self;
     local $_ = shift;
-    $_ = "$_" if ref;
     return $self->undefify unless defined;
+    $_ = "$_" if ref;
     my ( $open, $close ) = $self->_get_delim( shift // $self->{quote2} );
 
-    my $sigils = $self->{sigils} =~ s/(.)/$self->_encode($1)/egsr;
+    my @sigils;
+    if ( my $sigils = $self->{sigils} ) {
+        push @sigils, split //, $sigils;
+    }
 
     # quote char(s), sigils, and backslash.
-    s/([$open$close$sigils\x5c])/\\$1/g;
-    s/([[:cntrl:]])/$self->_encode($1)/eg;
+    $self->{encode} = $self->{encode2};
+    my $to_encode = $self->_to_encode( $open, $close, @sigils );
+    s/([$to_encode])/$self->_encode($1)/eg;
+    delete $self->{encode};
 
     if ( $self->{quote2} ne $open ) {
         if ( $open =~ /\w/ ) {
@@ -510,21 +517,78 @@ See L</stringify( value )>.
 Change to a false value to indicate no string is long.
 Change to a negative value to indicate every string is long.
 
-=item I<encode>  => B<<
+=item I<encode1>  => B<< { 92 => '\\\\', byte => '\x%02x' } >>
+
+=item I<encode2>  => B<<
 {
 0 => '\0',
 7 => '\a',
+8 => '\b',
 9 => '\t',
 10 => '\n',
 12 => '\f',
 13 => '\r',
 27 => '\e',
+92 => '\\\\',
+also => '[:cntrl:]',
 byte => '\x%02x',
 wide => '\x{%04x}'
 }
 >>
 
 How to encode characters that need encoding.
+
+=over
+
+=item C<< number => 'encoding' >>
+
+Encode the character with ordinal C<number> as C<'encoding'>.
+
+=item C<< also => '[:cntrl:]' >>
+
+Encode this range of characters, too.
+
+=item C<< byte => '\x%02x' >>
+
+Encode characters that do not otherwise have an encoding
+with this C<sprintf> expression.
+
+=item C<< byte2 => undef >>
+
+Used to encode 2 byte UTF-8 sequences.
+If unset, then 2-byte sequences are encoded by using they C<byte>
+encoding twice.
+
+=item C<< byte3 => undef >>
+
+Used to encode 3 byte UTF-8 sequences.
+If unset, then 3-byte sequences are encoded by using they C<byte>
+encoding three times.
+
+=item C<< byte4 => undef >>
+
+Used to encode 4 byte UTF-8 sequences.
+If unset, then 4-byte sequences are encoded by using they C<byte>
+encoding four times.
+
+=item C<< utf => undef >>
+
+Use the internal encoding routines to encode characters.
+Set it to C<8> to encode as UTF-8,
+or set it to C<16> to encode as UTF-16.
+
+=item C<< vwide => undef >>
+
+Encode very wide characters that do not otherwise have an encoding
+with this C<sprintf> expression.  If unset, then very wide characters
+are encoded with C<wide> twice.
+
+=item C<< wide => '\x{%04x}' >>
+
+Encode wide characters that do not otherwise have an encoding
+with this C<sprintf> expression.
+
+=back
 
 =item I<qpairs>  => B<< [ qw\ () <> [] {} \ ] >>
 
@@ -550,18 +614,28 @@ which character would work best.
     q2      => 'qq',
     sigils  => '$@',
     longstr => 1_000,
-    encode  => {
-        map( { ord( eval qq!"$_"! ) => $_ } qw( \0 \a \t \n \f \r \e ) ),
+    encode1 => {
+        0x5c => '\\\\',
+
+        byte  => '\\%c',
+    },
+    encode2 => {
+        map( { ord( eval qq!"$_"! ) => $_ } qw( \0 \a \b \t \n \f \r \e ) ),
         #0x00 => '\\0',
         #0x07 => '\\a',
-        ##0x08 => '\\b',   # Does \b mean backspace or word-boundary?
+        #0x08 => '\\b',
         #0x09 => '\\t',
         #0x0a => '\\n',
         #0x0c => '\\f',
         #0x0d => '\\r',
         #0x1b => '\\e',
-        byte => '\\x%02x',
-        wide => '\\x{%04x}',
+        0x5c => '\\\\',
+
+        also  => '[:cntrl:]',
+        byte  => '\\x%02x',
+        #utf   => 8,
+        wide  => '\\x{%04x}',
+        #vwide => '\\x{%06x}',
     },
 
     do {
@@ -602,10 +676,11 @@ sub stringify {
         Carp::croak("Bad setting for quote: $self->{quote}");
     }
 
-    # Long strings or strings with control characters
+    # Long strings or strings with special characters
     my $longstr = $self->{longstr};
+    my $also    = $self->{encode2}{also};
     return $self->stringify2($_)
-        if ( $longstr && $longstr < length() || /[[:cntrl:]]/ );
+        if ( ( $longstr && $longstr < length() ) || ( $also && /[$also]/ ) );
 
     my $quote1 = $self->{quote1};
     $self->{tr1} ||= "tr\\$quote1\\$quote1\\";
@@ -904,6 +979,38 @@ sub vstringify {
 
 =item I<q3>      => B<'qr'>
 
+=item I<encode3>  => B<<
+{
+0 => '\0',
+7 => '\a',
+9 => '\t',
+10 => '\n',
+12 => '\f',
+13 => '\r',
+27 => '\e',
+also => '[:cntrl:]',
+byte => '\x%02x',
+wide => '\x{%04x}'
+}
+>>
+
+How to encode characters that need encoding.  See L<<< /I<encode2>  => B<<
+{
+0 => '\0',
+7 => '\a',
+8 => '\b',
+9 => '\t',
+10 => '\n',
+12 => '\f',
+13 => '\r',
+27 => '\e',
+92 => '\\\\',
+also => '[:cntrl:]',
+byte => '\x%02x',
+wide => '\x{%04x}'
+}
+>> >>>
+
 =back
 
 =cut
@@ -915,6 +1022,22 @@ sub vstringify {
     quote3  => '/',
     #tr3     => q!tr\\/\\/\\!,
     q3      => 'qr',
+
+    encode3 => {
+        map( { ord( eval qq!"$_"! ) => $_ } qw( \0 \a \t \n \f \r \e ) ),
+        #0x00 => '\\0',
+        #0x07 => '\\a',
+        #0x09 => '\\t',
+        #0x0a => '\\n',
+        #0x0c => '\\f',
+        #0x0d => '\\r',
+        #0x1b => '\\e',
+
+        also  => '[:cntrl:]',
+        byte  => '\\x%02x',
+        wide  => '\\x{%04x}',
+        #vwide => '\\x{%06x}',
+    },
 );
 
 =method C<regexpify( value, delimiters )>
@@ -935,8 +1058,10 @@ sub regexpify {
             shift // $quoter ? $self->_find_q($_) : $self->{quote3} );
 
     # Everything but the quotes should be escaped already.
-    s/([$open$close])/\\$1/g;
-    s/([[:cntrl:]])/$self->_encode($1)/eg;
+    $self->{encode} = $self->{encode3};
+    my $to_encode = $self->_to_encode( $open, $close );
+    s/([$to_encode])/$self->_encode($1)/eg;
+    delete $self->{encode};
 
     if ( $open =~ /\w/ ) {
         $open  = ' ' . $open;
@@ -1603,21 +1728,128 @@ sub _get_delim {
     return $open, $close;
 }
 
+sub _to_encode {
+    my $self   = shift;
+
+    my $encode = $self->{encode};
+
+    # Ingore the settings for byte, byte2, byte3, byte4, vwide, wide,
+    # and utf
+    my @encode
+        = grep { !(/\A(?:also|byte[234]?|v?wide|utf)\z/) } keys(%$encode);
+
+    my @ranges = ( $encode->{also} // () );
+    foreach my $element (@_) {
+        if ( Scalar::Util::looks_like_number($element) ) {
+            push @encode, $element;
+        } elsif ( length($element) == 1 ) {
+            # An actual character, lets get the ordinal value and use that
+            push @encode, ord($element);
+        } else {
+            # Something longer, it must be a range of chars,
+            # like [:cntrl:], \x00-\x7f, or similar
+            push @ranges, $element;
+        }
+    }
+    @encode = map {
+        # Encode characters in their \xXX or \x{XXXX} notation,
+        # to get the literal values
+        sprintf( $_ <= 255 ? '\\x%02x' : '\\x{%04x}', $_ )
+    } sort {
+        $a <=> $b
+    } @encode;
+
+    return join( '', @encode, @ranges );
+}
+
+sub _encode_utf16 {
+    my $self = shift;
+    my $ord  = shift;
+
+    my $wide = $self->{encode}{wide};
+    if (0) {
+    } elsif ( 0x0000 <= $ord && $ord <= 0xd7ff ) {
+        return sprintf( $wide, $ord );
+    } elsif ( 0xd800 <= $ord && $ord <= 0xdfff ) {
+        die "Illegal character $ord";
+    } elsif ( 0xe000 <= $ord && $ord <= 0xffff ) {
+        return sprintf( $wide, $ord );
+    } elsif ( 0x01_0000 <= $ord && $ord <= 0x10_ffff ) {
+        my $vwide = $self->{encode}{vwide} || $wide x 2;
+
+        $ord -= 0x01_0000;
+        my $ord2 = 0xdc00 + ( 0x3ff & $ord );
+        $ord >>= 10;
+        my $ord1 = 0xd800 + ( 0x3ff & $ord );
+        return sprintf( $vwide, $ord1, $ord2 );
+    } else {
+        die "Illegal character $ord";
+    }
+}
+sub _encode_utf8 {
+    my $self = shift;
+    my $ord  = shift;
+
+    my $byte = $self->{encode}{byte};
+    if (0) {
+    } elsif (      0x00 <= $ord && $ord <=      0x7f ) {
+        # 1 byte represenstation
+        return sprintf( $byte, $ord );
+    } elsif (    0x0080 <= $ord && $ord <=    0x07ff ) {
+        # 2 byte represenstation
+        my $byte2 = $self->{encode}{byte2} || $byte x 2;
+
+        my $ord2 = 0x80 + ( 0x3f & $ord );
+        $ord >>= 6;
+        my $ord1 = 0xc0 + ( 0x1f & $ord );
+        return sprintf( $byte2, $ord1, $ord2 );
+    } elsif (    0x0800 <= $ord && $ord <=    0xffff ) {
+        # 3 byte represenstation
+        my $byte3 = $self->{encode}{byte3} || $byte x 3;
+
+        my $ord3 = 0x80 + ( 0x3f & $ord );
+        $ord >>= 6;
+        my $ord2 = 0x80 + ( 0x3f & $ord );
+        $ord >>= 6;
+        my $ord1 = 0xe0 + ( 0x0f & $ord );
+        return sprintf( $byte3, $ord1, $ord2, $ord3 );
+    } elsif ( 0x01_0000 <= $ord && $ord <= 0x10_ffff ) {
+        # 4 byte represenstation
+        my $byte4 = $self->{encode}{byte4} || $byte x 4;
+
+        my $ord4 = 0x80 + ( 0x3f & $ord );
+        $ord >>= 6;
+        my $ord3 = 0x80 + ( 0x3f & $ord );
+        $ord >>= 6;
+        my $ord2 = 0x80 + ( 0x3f & $ord );
+        $ord >>= 6;
+        my $ord1 = 0xf0 + ( 0x07 & $ord );
+        return sprintf( $byte4, $ord1, $ord2, $ord3, $ord4 );
+    } else {
+        die "Illegal character $ord";
+    }
+}
 sub _encode {
     my $self = shift;
     my $ord  = ord shift;
 
-    my $encoding;
-    my $encodings = $self->{encode};
-    if ( exists $encodings->{$ord} ) {
-        return $encodings->{$ord};
+    my $encode = $self->{encode};
+    my $utf = $encode->{utf} // 0;
+    if ( defined $encode->{$ord} ) {
+        return $encode->{$ord};
+    } elsif ( $utf == 8 ) {
+        return $self->_encode_utf8( $ord );
+    } elsif ( $utf == 16 ) {
+        return $self->_encode_utf16( $ord );
     } elsif ( $ord <= 255 ) {
-        $encoding = $encodings->{byte};
+        return sprintf $encode->{byte}, $ord;
+    } elsif ( $ord <= 65_535 ) {
+        my $encoding = $encode->{wide} // $encode->{byte};
+        return sprintf $encoding, $ord;
     } else {
-        $encoding = $encodings->{wide} // $encodings->{byte};
+        my $encoding = $encode->{vwide} // $encode->{wide} // $encode->{byte};
+        return sprintf $encoding, $ord;
     }
-
-    return sprintf $encoding, $ord;
 }
 
 # Find a good character to use for delimiting q or qq.
