@@ -421,7 +421,7 @@ sub stringify1 {
 
     $self->{encode} = $self->{encode1};
     my $to_encode = $self->_to_encode( $open, $close );
-    s/([$to_encode])/$self->_encode($1)/eg;
+    s/([$to_encode])/$self->_encode_char($1)/eg;
     delete $self->{encode};
 
     if ( $self->{quote1} ne $open ) {
@@ -461,7 +461,7 @@ sub stringify2 {
     # quote char(s), sigils, and backslash.
     $self->{encode} = $self->{encode2};
     my $to_encode = $self->_to_encode( $open, $close, @sigils );
-    s/([$to_encode])/$self->_encode($1)/eg;
+    s/([$to_encode])/$self->_encode_char($1)/eg;
     delete $self->{encode};
 
     if ( $self->{quote2} ne $open ) {
@@ -1061,7 +1061,7 @@ sub regexpify {
     # Everything but the quotes should be escaped already.
     $self->{encode} = $self->{encode3};
     my $to_encode = $self->_to_encode( $open, $close );
-    s/([$to_encode])/$self->_encode($1)/eg;
+    s/([$to_encode])/$self->_encode_char($1)/eg;
     delete $self->{encode};
 
     if ( $open =~ /\w/ ) {
@@ -1763,60 +1763,69 @@ sub _to_encode {
     return join( '', @encode, @ranges );
 }
 
-sub _encode_utf16 {
+sub _encode_ord2utf16 {
     my $self = shift;
     my $ord  = shift;
 
-    my $wide = $self->{encode}{wide};
+    my $format = $self->{encode}{wide};
+    my @wides  = ();
     if (0) {
-    } elsif ( 0x0000 <= $ord && $ord <= 0xd7ff ) {
-        return sprintf( $wide, $ord );
-    } elsif ( 0xd800 <= $ord && $ord <= 0xdfff ) {
-        die "Illegal character $ord";
-    } elsif ( 0xe000 <= $ord && $ord <= 0xffff ) {
-        return sprintf( $wide, $ord );
+    } elsif ( 0x0000 <= $ord && $ord <= 0xffff ) {
+        if ( 0xd800 <= $ord && $ord <= 0xdfff ) {
+            die "Illegal character $ord";
+        }
+
+        @wides = ( $ord );
     } elsif ( 0x01_0000 <= $ord && $ord <= 0x10_ffff ) {
-        my $vwide = $self->{encode}{vwide} || $wide x 2;
+        $format = $self->{encode}{vwide} || $format x 2;
 
         $ord -= 0x01_0000;
         my $ord2 = 0xdc00 + ( 0x3ff & $ord );
         $ord >>= 10;
         my $ord1 = 0xd800 + ( 0x3ff & $ord );
-        return sprintf( $vwide, $ord1, $ord2 );
+        @wides = ( $ord1, $ord2 );
     } else {
         die "Illegal character $ord";
     }
+    return sprintf( $format, @wides );
 }
-sub _encode_utf8 {
+sub _encode_ord2utf8 {
     my $self = shift;
     my $ord  = shift;
 
-    my $byte = $self->{encode}{byte};
+    my @bytes  = ();
+    my $format = undef;
+
     if (0) {
     } elsif (      0x00 <= $ord && $ord <=      0x7f ) {
         # 1 byte represenstation
-        return sprintf( $byte, $ord );
+        $format = $self->{encode}{byte};
+        @bytes  = ( $ord );
     } elsif (    0x0080 <= $ord && $ord <=    0x07ff ) {
         # 2 byte represenstation
-        my $byte2 = $self->{encode}{byte2} || $byte x 2;
+        $format = $self->{encode}{byte2} || $format x 2;
 
         my $ord2 = 0x80 + ( 0x3f & $ord );
         $ord >>= 6;
         my $ord1 = 0xc0 + ( 0x1f & $ord );
-        return sprintf( $byte2, $ord1, $ord2 );
+        @bytes = ( $ord1, $ord2 );
     } elsif (    0x0800 <= $ord && $ord <=    0xffff ) {
+        if (     0xd800 <= $ord && $ord <=    0xdfff ) {
+            die "Illegal character $ord";
+        }
+
         # 3 byte represenstation
-        my $byte3 = $self->{encode}{byte3} || $byte x 3;
+        $format = $self->{encode}{byte3} || $format x 3;
 
         my $ord3 = 0x80 + ( 0x3f & $ord );
         $ord >>= 6;
         my $ord2 = 0x80 + ( 0x3f & $ord );
         $ord >>= 6;
         my $ord1 = 0xe0 + ( 0x0f & $ord );
-        return sprintf( $byte3, $ord1, $ord2, $ord3 );
+        @bytes = ( $ord1, $ord2, $ord3 );
     } elsif ( 0x01_0000 <= $ord && $ord <= 0x10_ffff ) {
         # 4 byte represenstation
-        my $byte4 = $self->{encode}{byte4} || $byte x 4;
+        $format = $self->{encode}{byte4} || $format x 4;
 
         my $ord4 = 0x80 + ( 0x3f & $ord );
         $ord >>= 6;
@@ -1825,23 +1834,24 @@ sub _encode_utf8 {
         my $ord2 = 0x80 + ( 0x3f & $ord );
         $ord >>= 6;
         my $ord1 = 0xf0 + ( 0x07 & $ord );
-        return sprintf( $byte4, $ord1, $ord2, $ord3, $ord4 );
+        @bytes = ( $ord1, $ord2, $ord3, $ord4 );
     } else {
         die "Illegal character $ord";
     }
+    return sprintf( $format, @bytes );
 }
-sub _encode {
+sub _encode_char {
     my $self = shift;
     my $ord  = ord shift;
 
     my $encode = $self->{encode};
-    my $utf = $encode->{utf} // 0;
+    my $utf    = $encode->{utf} // 0;
     if ( defined $encode->{$ord} ) {
         return $encode->{$ord};
     } elsif ( $utf == 8 ) {
-        return $self->_encode_utf8( $ord );
+        return $self->_encode_ord2utf8( $ord );
     } elsif ( $utf == 16 ) {
-        return $self->_encode_utf16( $ord );
+        return $self->_encode_ord2utf16( $ord );
     } elsif ( $ord <= 255 ) {
         return sprintf $encode->{byte}, $ord;
     } elsif ( $ord <= 65_535 ) {
