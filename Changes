@@ -7,6 +7,7 @@ Revision history for Datify.
  - Improved handling of characters, so that UTF-8 and UTF-16 can be supported.
  - It turns out that reftype reports back 'REGEXP', not 'Regexp'.
    - RANT: That's not documented anywhere that I can find.
+ - Reduced requirement for Datify::Path from Perl v5.18 to v.5.14.
 
 0.18.279  2018-10-06
 

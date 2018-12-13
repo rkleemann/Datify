@@ -1,4 +1,4 @@
-use v5.18;
+use v5.14;
 use warnings;
 
 package Datify::Path;
