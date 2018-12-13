@@ -1492,7 +1492,7 @@ sub objectify {
         elsif ( $data eq 'GLOB' )   { $data = $self->globify(    $object  ) }
         elsif ( $data eq 'IO' )     { $data = $self->ioify(      $object  ) }
         elsif ( $data eq 'REF' )    { $data = $self->refify(     $object  ) }
-        elsif ( $data eq 'Regexp' ) { $data = $self->regexpify(  $object  ) }
+        elsif ( $data eq 'REGEXP' ) { $data = $self->regexpify(  $object  ) }
         elsif ( $data eq 'SCALAR' ) { $data = $self->refify(    $$object  ) }
 
         else { $data = "*UNKNOWN{$data}" } # ???
