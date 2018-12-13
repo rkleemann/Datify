@@ -2,6 +2,11 @@ Revision history for Datify.
 
 {{$NEXT}}
 
+ - Changed comaprisons in is_numeric() to not use regular expressions,
+   and be accurate for various representations of nan, inf, and -inf.
+
+0.18.279  2018-10-06
+
  - Changed _encode() to accommodate UTF-8 and UTF-16 encoding.
 
 0.18.277  2018-10-04

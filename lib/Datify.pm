@@ -767,12 +767,13 @@ sub is_numeric {
         }
     }
 
-    # The "defined" and Regexp ensure that we're not
-    # considering inf, nan, and their variants as numeric
-    # (even though looks_like_number does)
+    # The "defined" ensures that we're not considering nan,
+    # and the tests against inf/-inf ensure that those are rejected
+    # (even though looks_like_number considers them valid)
     return Scalar::Util::looks_like_number($_)
         && defined( $_ <=> 0 )
-        && !/^\s*[+-]?(?i:inf(?:inity)?|nan)\s*$/;
+        && $_ !=  'inf'
+        && $_ != '-inf';
 }
 
 =method C<numify( value )>
