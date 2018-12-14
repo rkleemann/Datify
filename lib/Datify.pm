@@ -1181,47 +1181,39 @@ sub keyify {
 
 
 
-=func C<keysort>
+=func C<keysort($$)>
 
 Not a method, but a sorting routine that sorts numbers (using C<< <=> >>)
 before strings (using C<cmp>).
 
 =cut
 
-sub keysort($$);
+sub _cmp_;
 BEGIN {
     if ( $^V >= v5.16.0 ) {
-        *keysort = Sub::Util::set_subname(
-            keysort => sub($$) {
-                my $na = Scalar::Util::looks_like_number( $_[0] )
-                    && defined( $_[0] <=> 0 );
-                my $nb = Scalar::Util::looks_like_number( $_[1] )
-                    && defined( $_[1] <=> 0 );
-                if ( $na && $nb ) { return $_[0] <=> $_[1] }
-                elsif ($na) { return -1 }
-                elsif ($nb) { return +1 }
-                else {
-                    return CORE::fc( $_[0] ) cmp CORE::fc( $_[1] )
-                        ||           $_[0]   cmp           $_[1];
-                }
-            }
-        );
+        eval <<'END_CMP';
+sub _cmp_ {
+    return CORE::fc( $_[0] ) cmp CORE::fc( $_[1] )
+        ||           $_[0]   cmp           $_[1];
+}
+END_CMP
     } else {
-        *keysort = Sub::Util::set_subname(
-            keysort => sub($$) {
-                my $na = Scalar::Util::looks_like_number( $_[0] )
-                    && defined( $_[0] <=> 0 );
-                my $nb = Scalar::Util::looks_like_number( $_[1] )
-                    && defined( $_[1] <=> 0 );
-                if ( $na && $nb ) { return $_[0] <=> $_[1] }
-                elsif ($na) { return -1 }
-                elsif ($nb) { return +1 }
-                else        { return $_[0] cmp $_[1] }
-            }
-        );
+        eval <<'END_CMP';
+sub _cmp_ { $_[0] cmp $_[1] }
+END_CMP
     }
 }
 
+sub keysort($$) {
+    my ( $a, $b ) = @_;
+    my $numa = Datify->is_numeric($a);
+    my $numb = Datify->is_numeric($b);
+       $numa && $numb ? $a <=> $b
+    :  $numa          ? -1
+    :           $numb ?        +1
+    :  _cmp_( $a, $b )
+    ;
+}
 
 =method C<hashkeys( $hash )>
 
@@ -1353,7 +1345,7 @@ C<HASH> or C<ARRAY>, should it pass through or not?
 
 How to sort the keys in a hash.  This has a performance hit,
 but it makes the output much more readable.  See the description of
-L</keysort>.
+L</keysort($$)>.
 
 =item I<keywords>         => B<[qw(undef)]>
 
