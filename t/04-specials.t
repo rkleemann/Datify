@@ -87,10 +87,10 @@ my @specials = (
 
     "format UNKNOWN =\n.\n" => *EMPTY_FORMAT{FORMAT} => 'format ref',
 );
-foreach my $stingified (qw( [] {} 'string' 123 456.78 )) {
-    my $thing = eval $stingified;
+foreach my $stringified (qw( [] {} 'string' 123 456.78 )) {
+    my $thing = eval $stringified;
     my $ref   = ref($thing);
-    my $repr  = $stingified;
+    my $repr  = $stringified;
     if ( !$ref ) {
         $thing = \do { 1; $thing };
         $repr = '\\' . $repr;
