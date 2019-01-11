@@ -1726,7 +1726,7 @@ sub _to_encode {
 
     my $encode = $self->{encode};
 
-    # Ingore the settings for byte, byte2, byte3, byte4, vwide, wide,
+    # Ignore the settings for byte, byte2, byte3, byte4, vwide, wide,
     # and utf
     my @encode
         = grep { !(/\A(?:also|byte[234]?|v?wide|utf)\z/) } keys(%$encode);
