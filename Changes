@@ -22,6 +22,24 @@ Revision history for Datify.
    - Added more tests.
    - Updated tests from Test::More to Test2::V0.
    - And Many more changes...
+ - Datify::Path:
+   - Lots of changes to the internals:
+     - Changed calls to ref() to Scalar::Util::blessed()
+       or Scalar::Util::reftype(), as appropriate.
+     - Update new(), get(), and set() to operate on local parameters 
+       before global ones.
+     - Converted several "if ... elsif ... else ..." blocks to
+       the equivalent trinary "? ... : ... ? : ..." statements.
+     - Methods should now localize $_, or operate on the global $_ if no
+       parameters are passed in.
+     - Improved the caching.
+   - Detect and die on recursive structures.
+   - Added more tests.
+   - Updated tests from Test::More to Test2::V0.
+   - And Many more changes...
+
+0.18.348  2018-12-14
+
  - Handle Perl 5.14 correctly (5.14 does not have fc()).
 
 0.18.347  2018-12-13
