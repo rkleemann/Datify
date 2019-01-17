@@ -3,7 +3,8 @@
 use strict;
 use warnings;
 
-use Test::More tests => 3;
+use Test2::V0;
+plan 3;
 
 ok require Datify, 'Required Datify';
 
@@ -26,5 +27,5 @@ can_ok 'Datify', qw(
     globify
 );
 
-new_ok( 'Datify' );
+isa_ok( Datify->new, 'Datify' );
 
