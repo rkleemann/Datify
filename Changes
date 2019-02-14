@@ -15,11 +15,14 @@ Revision history for Datify.
      - Methods should now localize $_, or operate on the global $_ if no
        parameters are passed in.
      - Improved the caching.
+     - Improved how codeify() works, by referring to a named subroutine,
+       if that can be determined.
    - numify() returns the string for undef, if that's what is passed in,
      rather than the undef value.
    - listify() no longer makes assumptions if passed a single ARRAY or HASH.
    - Added is_keyword() method.
    - Added more tests.
+   - Updated the documentation.
    - Updated tests from Test::More to Test2::V0.
    - And Many more changes...
  - Datify::Path:

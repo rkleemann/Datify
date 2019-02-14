@@ -1,8 +1,8 @@
 use v5.14;
+use warnings;
 
 package Datify;
 # ABSTRACT: Simple stringification of data.
-# VERSION
 
 =head1 SYNOPSIS
 
@@ -26,51 +26,14 @@ easier to use, and has better formatting and options.
 
 =cut
 
-use mro      ();            #qw( get_linear_isa );
-use overload ();
-use warnings;
+use mro      ();        #qw( get_linear_isa );
+use overload ();        #qw( Method Overloaded );
 
-use Carp         ();        #qw( carp croak );
-use List::Util   ();        #qw( reduce sum );
-use Scalar::Util ();        #qw( blessed looks_like_number refaddr reftype );
-use String::Tools v0.18.277
-               qw( subst ); #qw( stringify );
-
-
-my %SETTINGS;
-
-=method C<< add_handler( $class => \&code_ref ) >>
-
-Add a handler to handle an object of type C<$class>.
-C<\&code_ref> should take two parameters,
-a reference to Datify,
-and the object to be Datify'ed.
-It should return a representation of the object.
-
-If C<$class> is unspecified, assumes that it's handling
-for the package where C<add_handler> is called from.
-
- # Set URI's to stringify as "URI->new('http://example.com')"
- # instead of "bless(\'http://example.com', 'URI')"
- Datify->add_handler( 'URI' => sub {
-     my ( $datify, $uri ) = @_;
-     my $s = $datify->stringify("$uri");
-     return "URI->new($s)";
- } );
-
-=cut
-
-sub add_handler {
-    my $self = &self;
-    my $code = pop;
-    my $pkg  = length( $_[0] ) ? shift : caller;
-
-    if ( my $name = _nameify($pkg) ) {
-        no strict 'refs';
-        *{$name} = $code;
-    }
-}
-
+use Carp         ();    #qw( carp croak );
+use List::Util   ();    #qw( reduce sum );
+use Scalar::Util ();    #qw( blessed looks_like_number refaddr reftype );
+use String::Tools v0.18.277 ();    #qw( stringify subst );
+use Sub::Util      1.40     ();    #qw( subname );
 
 
 ### Constructor ###
@@ -91,7 +54,7 @@ sub new {
         %self  = %$class;    # shallow copy
         $class = $blessed;
     }
-    return bless( \%self, $class )->set(@_);
+    return @_ ? bless( \%self, $class )->set(@_) : bless( \%self, $class );
 }
 
 
@@ -115,8 +78,11 @@ persist the change:
 
 =cut
 
+my %SETTINGS;
+
 sub set {
     my $self = shift;
+    return $self unless @_;
     my %set  = @_;
 
     my $return;
@@ -160,7 +126,7 @@ Can be called as a class method or an object method.
 =cut
 
 sub get {
-    my $self = shift;
+    my $self  = shift;
     my $count = scalar(@_);
 
     if ( defined( Scalar::Util::blessed($self) ) ) {
@@ -176,6 +142,62 @@ sub get {
               $count == 0 ? $self->hashkeyvals( \%SETTINGS )
             : $count == 1 ? $SETTINGS{ $_[0] }
             :               @SETTINGS{@_};
+    }
+}
+
+=method exists( name, name, ... )
+
+Determine if values exists for one or more settings.
+
+Can be called as a class method or an object method.
+
+=cut
+
+sub exists {
+    my $self = shift;
+    return unless my $count = scalar(@_);
+
+    if ( Scalar::Util::blessed($self) ) {
+        return $count == 1
+            ? do {  exists $self->{ $_[0] } || exists $SETTINGS{ $_[0] } }
+            : map { exists $self->{ $_ }    || exists $SETTINGS{ $_ } } @_;
+    } else {
+        return
+            $count == 1 ? exists $SETTINGS{ $_[0] }
+            :       map { exists $SETTINGS{ $_ } } @_;
+    }
+}
+
+
+=method C<< add_handler( $class => \&code_ref ) >>
+
+Add a handler to handle an object of type C<$class>.
+C<\&code_ref> should take two parameters,
+a reference to Datify,
+and the object to be Datify'ed.
+It should return a representation of the object.
+
+If C<$class> is unspecified, assumes that it's handling
+for the package where C<add_handler> is called from.
+
+ # Set URI's to stringify as "URI->new('http://example.com')"
+ # instead of "bless(\'http://example.com', 'URI')"
+ Datify->add_handler( 'URI' => sub {
+     my ( $datify, $uri ) = @_;
+     my $s = $datify->stringify("$uri");
+     return "URI->new($s)";
+ } );
+
+=cut
+
+sub add_handler {
+    my $self = &self;
+    my $code = pop;
+    my $pkg  = length( $_[0] ) ? shift : caller;
+
+    if ( my $name = _nameify($pkg) ) {
+        no strict 'refs';
+        *{$name} = $code;
     }
 }
 
@@ -199,6 +221,10 @@ C<'my $var = $value;'>.
 =item I<list>       => B<'($_)'>
 
 The delimiters for a list.
+
+=item I<list_sep>    => B<', '>
+
+The separator between list elements.
 
 =item I<beautify>   => B<undef>
 
@@ -239,13 +265,12 @@ An example:
 
 =cut
 
-%SETTINGS = (
-    %SETTINGS,
-
+__PACKAGE__->set(
     # Var options
     name        => '$self',
     assign      => '$var = $value;',
     list        => '($_)',
+    list_sep    => ', ',
     beautify    => undef,
 );
 
@@ -343,13 +368,13 @@ sub varify {
     $self = $self->set( name => $name );
 
     $value
-        = $sigil eq '$' ?                            $self->scalarify($value)
-        : $sigil eq '@' ? subst( $self->get('list'), $self->listify($value) )
-        : $sigil eq '%' ? subst( $self->get('list'), $self->pairify($value) )
-        :                                            $self->scalarify($value)
+        = $sigil eq '$' ?                             $self->scalarify($value)
+        : $sigil eq '@' ? _subst( $self->get('list'), $self->listify($value) )
+        : $sigil eq '%' ? _subst( $self->get('list'), $self->pairify($value) )
+        :                                             $self->scalarify($value)
         ;
 
-    $value = subst( $self->get('assign'), var => $name, value => $value );
+    $value = _subst( $self->get('assign'), var => $name, value => $value );
     if ( my $beautify = $self->get('beautify') ) {
         return $beautify->($value);
     } else {
@@ -373,9 +398,7 @@ What to use as the null value.
 
 =cut
 
-%SETTINGS = (
-    %SETTINGS,
-
+__PACKAGE__->set(
     # Undef options
     null => 'undef',
 );
@@ -411,9 +434,7 @@ Since Perl does not have native boolean values, these are placeholders.
 
 =cut
 
-%SETTINGS = (
-    %SETTINGS,
-
+__PACKAGE__->set(
     # Boolean options
     true    => 1,
     false   => "''",
@@ -422,7 +443,8 @@ Since Perl does not have native boolean values, these are placeholders.
 =method C<booleanify( value )>
 
 Returns the string that represents the C<true> or C<false> interpretation
-of value.  Will return the value for C<undefify> if C<value> is not defined.
+of C<value>.
+Will return the value for C<undefify> if C<value> is not defined.
 
 =cut
 
@@ -455,7 +477,6 @@ sub stringify1 {
     $self = $self->set( encode => $self->get('encode1') );
     my $to_encode = $self->_to_encode( $open, $close );
     s/([$to_encode])/$self->_encode_char($1)/eg;
-    #delete $self->{encode};
 
     if ( $quote1 ne $open ) {
         if ( $open =~ /\w/ ) {
@@ -496,7 +517,6 @@ sub stringify2 {
     $self = $self->set( encode => $self->get('encode2') );
     my $to_encode = $self->_to_encode( $open, $close, @sigils );
     s/([$to_encode])/$self->_encode_char($1)/eg;
-    #delete $self->{encode};
 
     if ( $quote2 ne $open ) {
         if ( $open =~ /\w/ ) {
@@ -551,73 +571,96 @@ See L</stringify( value )>.
 Change to a false value to indicate no string is long.
 Change to a negative value to indicate every string is long.
 
-=item I<encode1>  => B<< { 92 => '\\\\', byte => '\x%02x' } >>
+=item I<encode1>  => B<{ ... }>
 
-=item I<encode2>  => B<<
-{
-0 => '\0',
-7 => '\a',
-8 => '\b',
-9 => '\t',
-10 => '\n',
-12 => '\f',
-13 => '\r',
-27 => '\e',
-92 => '\\\\',
-also => '[:cntrl:]',
-byte => '\x%02x',
-wide => '\x{%04x}'
-}
->>
+=over
+
+=item I<92>   => B<'\\\\'>
+
+=item I<byte> => B<'\\%c'>
+
+=back
+
+
+=item I<encode2>  => B<{ ... }>
+
+=over
+
+=item I<0>    => B<'\0'>
+
+=item I<7>    => B<'\a'>
+
+=item I<8>    => B<'\b'>
+
+=item I<9>    => B<'\t'>
+
+=item I<10>   => B<'\n'>
+
+=item I<12>   => B<'\f'>
+
+=item I<13>   => B<'\r'>
+
+=item I<27>   => B<'\e'>
+
+=item I<92>   => B<'\\\\'>
+
+=item I<also> => B<'[:cntrl:]'>
+
+=item I<byte> => B<'\x%02x'>
+
+=item I<wide> => B<'\x{%04x}'>
+
+=back
+
 
 How to encode characters that need encoding.
 
 =over
 
-=item C<< number => 'encoding' >>
+=item I<number> => B<'encoding'>
 
 Encode the character with ordinal C<number> as C<'encoding'>.
 
-=item C<< also => '[:cntrl:]' >>
+=item I<also>   => B<'[:cntrl:]'>
 
 Encode this range of characters, too.
 
-=item C<< byte => '\x%02x' >>
+=item I<byte>   => B<'\x%02x'>
 
 Encode characters that do not otherwise have an encoding
 with this C<sprintf> expression.
 
-=item C<< byte2 => undef >>
+=item I<byte2>  => B<undef>
 
 Used to encode 2 byte UTF-8 sequences.
 If unset, then 2-byte sequences are encoded by using they C<byte>
 encoding twice.
 
-=item C<< byte3 => undef >>
+=item I<byte3>  => B<undef>
 
 Used to encode 3 byte UTF-8 sequences.
 If unset, then 3-byte sequences are encoded by using they C<byte>
 encoding three times.
 
-=item C<< byte4 => undef >>
+=item I<byte4>  => B<undef>
 
 Used to encode 4 byte UTF-8 sequences.
 If unset, then 4-byte sequences are encoded by using they C<byte>
 encoding four times.
 
-=item C<< utf => undef >>
+=item I<utf>    => B<undef>
 
 Use the internal encoding routines to encode characters.
 Set it to C<8> to encode as UTF-8,
 or set it to C<16> to encode as UTF-16.
 
-=item C<< vwide => undef >>
+=item I<vwide>  => B<undef>
 
 Encode very wide characters that do not otherwise have an encoding
 with this C<sprintf> expression.  If unset, then very wide characters
 are encoded with C<wide> twice.
 
-=item C<< wide => '\x{%04x}' >>
+=item I<wide>   => B<'\x{%04x}'>
 
 Encode wide characters that do not otherwise have an encoding
 with this C<sprintf> expression.
@@ -635,9 +678,7 @@ which character would work best.
 
 =cut
 
-%SETTINGS = (
-    %SETTINGS,
-
+__PACKAGE__->set(
     # String options
     quote   => undef,   # Auto
     quote1  => "'",
@@ -762,9 +803,7 @@ What character to use to seperate sets of numbers.
 
 =cut
 
-%SETTINGS = (
-    %SETTINGS,
-
+__PACKAGE__->set(
     # Number options
     infinite  => "'inf'",
     -infinite => "'-inf'",
@@ -922,11 +961,11 @@ sub _scalarify {
         : do {
             my $reference = $self->get('reference');
 
-              $ref eq 'GLOB'    ? subst( $reference, $self->globify($$_) )
-            : $ref eq 'LVALUE'  ? subst( $reference, $self->lvalueify($$_) )
-            : $ref eq 'SCALAR'  ? subst( $reference, $self->scalarify($$_) )
-            : $ref eq 'VSTRING' ? subst( $reference, $self->vstringify($$_) )
-            :                                        $self->objectify($_)
+              $ref eq 'GLOB'    ? _subst( $reference, $self->globify($$_) )
+            : $ref eq 'LVALUE'  ? _subst( $reference, $self->lvalueify($$_) )
+            : $ref eq 'SCALAR'  ? _subst( $reference, $self->scalarify($$_) )
+            : $ref eq 'VSTRING' ? _subst( $reference, $self->vstringify($$_) )
+            :                                         $self->objectify($_)
             ;
         };
 }
@@ -947,9 +986,7 @@ How to generate a LValue.
 
 =cut
 
-%SETTINGS = (
-    %SETTINGS,
-
+__PACKAGE__->set(
     # LValue options
     lvalue  => 'substr($lvalue, 0)',
 );
@@ -962,7 +999,7 @@ Returns an approximate representation of what the lvalue is.
 
 sub lvalueify {
     my $self = &self;
-    return subst( $self->get('lvalue'), lvalue => $self->stringify(shift) );
+    return _subst( $self->get('lvalue'), lvalue => $self->stringify(shift) );
 }
 
 
@@ -985,9 +1022,7 @@ C<< vformat => 'v%*vd', vsep => '.' >>.
 
 =cut
 
-%SETTINGS = (
-    %SETTINGS,
-
+__PACKAGE__->set(
     # VString options
     vformat => 'v%vd',
     #vformat => 'v%*vd',
@@ -1021,45 +1056,40 @@ sub vstringify {
 
 =item I<q3>      => B<'qr'>
 
-=item I<encode3>  => B<<
-{
-0 => '\0',
-7 => '\a',
-9 => '\t',
-10 => '\n',
-12 => '\f',
-13 => '\r',
-27 => '\e',
-also => '[:cntrl:]',
-byte => '\x%02x',
-wide => '\x{%04x}'
-}
->>
+=item I<encode3>  => B<{ ... }>
 
-How to encode characters that need encoding.  See L<<< /I<encode2>  => B<<
-{
-0 => '\0',
-7 => '\a',
-8 => '\b',
-9 => '\t',
-10 => '\n',
-12 => '\f',
-13 => '\r',
-27 => '\e',
-92 => '\\\\',
-also => '[:cntrl:]',
-byte => '\x%02x',
-wide => '\x{%04x}'
-}
->> >>>
+=over
+
+=item I<0>    => B<'\0'>
+
+=item I<7>    => B<'\a'>
+
+=item I<9>    => B<'\t'>
+
+=item I<10>   => B<'\n'>
+
+=item I<12>   => B<'\f'>
+
+=item I<13>   => B<'\r'>
+
+=item I<27>   => B<'\e'>
+
+=item I<also> => B<'[:cntrl:]'>
+
+=item I<byte> => B<'\x%02x'>
+
+=item I<wide> => B<'\x{%04x}'>
+
+=back
+
+How to encode characters that need encoding.
+See L<< /I<encode2>  => B<{ ... }> >>
 
 =back
 
 =cut
 
-%SETTINGS = (
-    %SETTINGS,
-
+__PACKAGE__->set(
     # Regexp options
     quote3  => '/',
     #tr3     => q!tr\\/\\/\\!,
@@ -1105,7 +1135,6 @@ sub regexpify {
     $self = $self->set( encode => $self->get('encode3') );
     my $to_encode = $self->_to_encode( $open, $close );
     s/([$to_encode])/$self->_encode_char($1)/eg;
-    #delete $self->{encode};
 
     if ( $open =~ /\w/ ) {
         $open  = ' ' . $open;
@@ -1151,20 +1180,13 @@ sub listify {
 
 The representation of an array reference.
 
-=item I<list_sep>    => B<', '>
-
-The representation of the separator between list elements.
-
 =back
 
 =cut
 
-%SETTINGS = (
-    %SETTINGS,
-
+__PACKAGE__->set(
     # Array options
     array_ref   => '[$_]',
-    list_sep    => ', ',
 );
 
 =method C<arrayify( value, value, ... )>
@@ -1177,7 +1199,7 @@ Returns value(s) as an array.
 
 sub arrayify {
     my $self = &self;
-    return subst( $self->get('array_ref'), $self->listify(@_) );
+    return _subst( $self->get('array_ref'), $self->listify(@_) );
 }
 
 
@@ -1303,7 +1325,7 @@ sub hashkeys {
             };
         } elsif ( $ref eq 'SCALAR' ) {
             my $keyfiltervalue = $$keyfilter;
-            $self->{keyfilter} = $keyfilter = sub { $keyfiltervalue };
+            $self->{keyfilter} = $keyfilter = sub {$keyfiltervalue};
         }
         @keys = grep { $keyfilter->() } @keys;
     }
@@ -1345,7 +1367,7 @@ sub pairify {
         $self = $self->_push_position("{$key}");
         my $val = $self->scalarify($v);
         $self->_pop_position;
-        push @list, subst( $pair, key => $key, value => $val );
+        push @list, _subst( $pair, key => $key, value => $val );
     }
     return join( $self->get('list_sep'), @list );
 }
@@ -1403,9 +1425,7 @@ Any keywords that should be quoted, even though they may not need to be.
 
 =cut
 
-%SETTINGS = (
-    %SETTINGS,
-
+__PACKAGE__->set(
     # Hash options
     hash_ref         => '{$_}',
     pair             => '$key => $value',
@@ -1426,7 +1446,7 @@ Returns value(s) as a hash.
 
 sub hashify  {
     my $self = &self;
-    return subst( $self->get('hash_ref'), $self->pairify(@_) );
+    return _subst( $self->get('hash_ref'), $self->pairify(@_) );
 }
 
 
@@ -1472,27 +1492,32 @@ See L<overload> for more information on overloading.
 The representation of an object.  Other possibilities include
 C<'$class($data)'> or C<< '$class->new($data)' >>.
 
-=item I<io>         => B<'*$name{IO}'>
-
-The representation of unknown IO objects.
-
 =back
 
 =cut
 
-%SETTINGS = (
-    %SETTINGS,
-
+__PACKAGE__->set(
     # Object options
     overloads => [ '""', '0+' ],
     object    => 'bless($data, $class_str)',
     #object    => '$class->new($data)',
-    io        => '*$name{IO}',
+    #object    => '$class=$data',
 );
 
 =method C<objectify( value )>
 
-Returns value as an object.
+Returns value as an object.  Tries several different ways to find the best
+representation of the object.
+
+If a handler has been defined for the object with
+L</C<< add_handler( $class => \&code_ref ) >>>, then use that.
+If the object has overloaded any of
+L<< /I<overloads>  => B<[ '""', '0+' ]> >>, then use that to represent
+the C<$data> portion of the object.
+If the object has an C<_attrkeyvals> method,
+then that will be used to gather the elements of the object.
+If the object has none of those things, then the object is inspected
+and handled appropriately.
 
  Datify->objectify($object);    # "bless({}, 'Object')"
 
@@ -1512,12 +1537,8 @@ sub objectify {
     } elsif ( my $method = $self->overloaded($object) ) {
         $data = $self->scalarify( $object->$method() );
     } elsif ( my $attrkeyvals = $object->can('_attrkeyvals') ) {
-        # TODO: Look this up via meta-objects and such.
+        # TODO: Look this up via meta-objects
         $data = $self->hashify( $object->$attrkeyvals() );
-    } elsif ( my $attrkeys = $object->can('_attrkeys') ) {
-        # TODO: Look this up via meta-objects and such.
-        $data = $self->hashify(
-            map { $_ => $object->{$_} } $object->$attrkeys() );
     } else {
         $data = Scalar::Util::reftype $object;
 
@@ -1534,7 +1555,7 @@ sub objectify {
             :                     "*UNKNOWN{$data}";
     }
 
-    return subst(
+    return _subst(
         $self->get('object'),
         class_str => $self->stringify($class),
         class     => $class,
@@ -1545,6 +1566,24 @@ sub objectify {
 
 
 ### Objects: IO ###
+
+=option IOify options
+
+=over
+
+=item I<io> => B<'*$name{IO}'>
+
+The representation of unknown IO objects.
+
+=back
+
+=cut
+
+__PACKAGE__->set(
+    # IO options
+    io => '*$name{IO}',
+);
+
 
 =method C<ioify( value )>
 
@@ -1574,7 +1613,7 @@ sub ioify {
     #        last;
     #    }
     #}
-    return subst( $self->get('io'), name => $ioname );
+    return _subst( $self->get('io'), name => $ioname );
 }
 
 
@@ -1585,13 +1624,17 @@ sub ioify {
 
 =over
 
-=item I<code>    => B<'sub {$_}'>
+=item I<code>     => B<'sub {$_}'>
 
 The representation of a code reference.  This module does not currently
 support decompiling code to make a complete representation, but if passed
 a representation, can wrap it in this.
 
-=item I<body>    => B<'...'>
+=item I<codename> => B<'\&$_'>
+
+The representation of a code reference by name.
+
+=item I<body>     => B<'...'>
 
 The representation of the body to a code reference.
 This module does not currently support decompiling code to make a
@@ -1601,39 +1644,55 @@ complete representation.
 
 =cut
 
-%SETTINGS = (
-    %SETTINGS,
-
+__PACKAGE__->set(
     # Code options
-    code    => 'sub {$_}',
-    body    => '...',
+    code     => 'sub {$body}',
+    codename => '\&$codename',
+    body     => '...',
 );
 
 =method C<codeify( value )>
 
-Returns a subroutine definition that is not likely to encode value.
+Returns a representation of a reference to a subroutine.
+If C<value> is not a reference,
+then uses that as the body of the anonymous subroutine.
+If C<value> is a C<CODE> reference, does some introspection on it,
+and expresses as a reference to the named subroutine,
+or to a generic anonymous function.
+If C<value> is another type of reference,
+then expressed as an anonymous function returning that.
+Otherwise, returns a generic anonymous function.
 
- Datify->codeify( \&subroutine );    # 'sub {...}'
-
-However,
-if C<value> is a string, then wrap that string with C<code>,
-or
-if C<value> is a reference to something other than C<CODE>,
-represent that reference by wrapping it with C<code>.
+ Datify->codeify( 'return $_' );               # 'sub { return $_ }'
+ Datify->codeify( \&MyModule::subroutine );    # '\&MyModule::subroutine'
+ Datify->codeify( sub {"!"} );                 # 'sub { ... }'
+ Datify->codeify( [1, 2, 3] );                 # 'sub { [1, 2, 3] }'
 
 =cut
 
-sub codeify   {
+sub codeify {
     my $self = &self;
-    if ( ! @_ || 'CODE' eq Scalar::Util::reftype $_[0] ) {
-        return subst $self->get('code'), $self->get('body');
-    } else {
-        my $code = shift;
-        if ( ! defined $code || Scalar::Util::reftype $code ) {
-            $code = $self->scalarify($code);
+
+    my $template = $self->get('code');
+    my %data     = ( body => $self->get('body') );
+    if ( @_ && defined( $_[0] ) ) {
+        local $_ = shift;
+        if ( my $ref = Scalar::Util::reftype($_) ) {
+            if ( $ref eq 'CODE' ) {
+                if ( ( my $subname = Sub::Util::subname($_) )
+                    !~ /\A(?:\w+\::)*__ANON__\z/ )
+                {
+                    $template = $self->get('codename') // $template;
+                    %data = ( codename => $subname );
+                }
+            } else {
+                %data = ( body => $self->scalarify($_) );
+            }
+        } else {
+            %data = ( body => $_ );
         }
-        return subst $self->get('code'), $code;
     }
+    return _subst( $template, %data );
 }
 
 
@@ -1658,9 +1717,7 @@ The representation of dereferencing a nested reference.
 
 =cut
 
-%SETTINGS = (
-    %SETTINGS,
-
+__PACKAGE__->set(
     # Reference options
     reference   => '\\$_',
     dereference => '$referent->$place',
@@ -1676,7 +1733,7 @@ Returns value as reference.
 sub refify    {
     my $self = &self;
     local $_ = shift if @_;
-    return subst( $self->get('reference'), $self->scalarify($_) );
+    return _subst( $self->get('reference'), $self->scalarify($_) );
 }
 
 
@@ -1694,9 +1751,7 @@ showing the acutal representation.
 
 =cut
 
-%SETTINGS = (
-    %SETTINGS,
-
+__PACKAGE__->set(
     # Format options
     format  => "format UNKNOWN =\n.\n",
 );
@@ -1755,6 +1810,12 @@ sub _find_handler {
         }
     }
     return;
+}
+
+sub _subst {
+    die "Cannot subst on an undefined value"
+        unless defined $_[0];
+    goto &String::Tools::subst;
 }
 
 sub _get_delim {
@@ -1948,7 +2009,7 @@ sub _name_and_position {
 
     my $nest = $self->get('nested') // $self->get('dereference');
     my $pos  = List::Util::reduce(
-        sub { subst( $nest, referent => $a, place => $b ) },
+        sub { _subst( $nest, referent => $a, place => $b ) },
             @{ $self->{_position} //= [] }
     );
 
@@ -1958,10 +2019,10 @@ sub _name_and_position {
         if ($pos) {
             $var = sprintf '$%s%s', substr($var, 1), $pos;
         } else {
-            $var = subst( $self->get('reference'), $var );
+            $var = _subst( $self->get('reference'), $var );
         }
     } elsif ($pos) {
-        $var = subst(
+        $var = _subst(
             $self->get('dereference') // $self->get('nested'),
             referent => $var,
             place    => $pos
@@ -1970,8 +2031,8 @@ sub _name_and_position {
     return $var;
 }
 
-%SETTINGS = (
-    %SETTINGS,
+__PACKAGE__->set(
+    # _caching options
     _cache_hit => 0,
 );
 sub _cache_add {

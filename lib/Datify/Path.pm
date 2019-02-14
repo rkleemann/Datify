@@ -10,15 +10,18 @@ use Datify          ();    #qw( self );
 use Scalar::Util    ();    #qw( blessed refaddr reftype );
 use String::Tools qw( subst );
 
-our %SETTINGS = (
-    datify_options => {},
-
-    list_count     => '[$i/$n]',
-    path_separator => '/',
-    statement      => '$key = $value',
-);
+our %SETTINGS = ();
 
 ### Public methods ###
+
+
+=method C<< new( name => value, name => value, ... ) >>
+
+Create a C<Datify::Path> object with the following options.
+
+See L</OPTIONS> for a description of the options and their default values.
+
+=cut
 
 sub new {
     my $class = shift || __PACKAGE__;
@@ -28,8 +31,18 @@ sub new {
         %self  = %$class;    # shallow copy
         $class = $blessed;
     }
-    return bless( \%self, $class )->set(@_);
+    return @_ ? bless( \%self, $class )->set(@_) : bless( \%self, $class );
 }
+
+
+=method C<get( name, name, ... )>
+
+Get one or more existing values for one or more settings.
+If passed no names, returns all parameters and values.
+
+Can be called as a class method or an object method.
+
+=cut
 
 sub get {
     my $self = shift;
@@ -51,8 +64,27 @@ sub get {
     }
 }
 
+
+=method C<< set( name => value, name => value, ... ) >>
+
+Change the L</OPTIONS> settings.
+When called as a class method, changes default options.
+When called as an object method, changes the settings and returns a
+new object.
+
+See L</OPTIONS> for a description of the options and their default values.
+
+B<NOTE:> When called as a object method, this returns a new instance
+with the values set, so you will need to capture the return if you'd like to
+persist the change:
+
+ $datify = $datify->set( ... );
+
+=cut
+
 sub set {
     my $self = shift;
+    return $self unless @_;
     my %set  = @_;
 
     my $return;
@@ -67,6 +99,9 @@ sub set {
         $return = 1;
     }
 
+
+
+
     my $internal = $class->isa( scalar caller );
     while ( my ( $k, $v ) = each %set ) {
         Carp::carp( 'Unknown key ', $k )
@@ -78,6 +113,35 @@ sub set {
 
     return ( $self, $class )[$return];
 }
+
+
+=method exists( name, name, ... )
+
+Determine if values exists for one or more settings.
+
+Can be called as a class method or an object method.
+
+=cut
+
+sub exists {
+    my $self = shift;
+    return unless my $count = scalar(@_);
+
+    if ( Scalar::Util::blessed($self) ) {
+        return $count == 1
+            ? do {  exists $self->{ $_[0] } || exists $SETTINGS{ $_[0] } }
+            : map { exists $self->{ $_ }    || exists $SETTINGS{ $_ } } @_;
+    } else {
+        return
+            $count == 1 ? exists $SETTINGS{ $_[0] }
+            :       map { exists $SETTINGS{ $_ } } @_;
+    }
+}
+
+
+=method pathify( ... )
+
+=cut
 
 sub pathify {
     return unless defined( my $wantarray = wantarray );
@@ -96,6 +160,10 @@ sub pathify {
 
 ### Private methods ###
 
+__PACKAGE__->set(
+    datify_options => {},
+);
+
 sub _datify {
     my $self = &Datify::self;
     my $datify = $self->get('_datify');
@@ -105,6 +173,10 @@ sub _datify {
     }
     return $datify;
 }
+
+__PACKAGE__->set(
+    statement      => '$key = $value',
+);
 
 sub _flatten {
     my $self = &Datify::self;
@@ -144,6 +216,10 @@ sub _flatten {
     }
 }
 
+__PACKAGE__->set(
+    list_count     => '[$i/$n]',
+);
+
 sub _array {
     my $self = &Datify::self;
     local $_ = shift if @_;
@@ -169,6 +245,10 @@ sub _array {
     }
     return @structure;
 }
+
+__PACKAGE__->set(
+    path_separator => '/',
+);
 
 sub _hash {
     my $self = &Datify::self;
@@ -229,9 +309,7 @@ sub _scalar {
         :                    die 'Cannot handle ', $ref;
 }
 
-%SETTINGS = (
-    %SETTINGS,
-
+__PACKAGE__->set(
     _cache_hit => 1,
     nested     => '$key$subkey',
 );
