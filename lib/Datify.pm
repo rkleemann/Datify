@@ -21,8 +21,8 @@ package Datify;
 
 =head1 DESCRIPTION
 
-C<Datify> is very similar to L<Data::Dumper>, except that it's
-easier to use, and has better formatting and options.
+C<Datify> is very similar to L<Data::Dumper>,
+except that it's easier to use, and has better formatting and options.
 
 =cut
 
@@ -32,7 +32,7 @@ use overload ();        #qw( Method Overloaded );
 use Carp         ();    #qw( carp croak );
 use List::Util   ();    #qw( reduce sum );
 use Scalar::Util ();    #qw( blessed looks_like_number refaddr reftype );
-use String::Tools v0.18.277 ();    #qw( stringify subst );
+use String::Tools v0.18.277 ();    #qw( stitch stringify subst );
 use Sub::Util      1.40     ();    #qw( subname );
 
 
@@ -59,6 +59,74 @@ sub new {
 
 
 
+### Accessor ###
+
+
+=method exists( name, name, ... )
+
+Determine if values exists for one or more settings.
+
+Can be called as a class method or an object method.
+
+=cut
+
+
+sub exists {
+    my $self = shift;
+    return unless my $count = scalar(@_);
+
+    my $SETTINGS = $self->_settings;
+    if ( Scalar::Util::blessed($self) ) {
+        return $count == 1
+            ?      exists $self->{ $_[0] }     && $self
+                || exists $SETTINGS->{ $_[0] } && $SETTINGS
+            : map {
+                   exists $self->{ $_ }        && $self
+                || exists $SETTINGS->{ $_ }    && $SETTINGS
+            } @_;
+    } else {
+        return
+            $count == 1 ? exists $SETTINGS->{ $_[0] } && $SETTINGS
+            :       map { exists $SETTINGS->{ $_ }    && $SETTINGS } @_;
+    }
+}
+
+
+=method C<get( name, name, ... )>
+
+Get one or more existing values for one or more settings.
+If passed no names, returns all parameters and values.
+
+Can be called as a class method or an object method.
+
+=cut
+
+sub _get_setting {
+    my $setting = $_[0]->exists( local $_ = $_[1] );
+    return $setting ? $setting->{$_} : do {
+        Carp::carp( 'Unknown key ', $_ )
+            unless $_[0]->_internal(1);
+        undef
+    };
+}
+sub get {
+    my $self  = shift;
+    my $count = scalar(@_);
+
+    if ( defined( my $class = Scalar::Util::blessed($self) ) ) {
+        return
+              $count == 0 ? ( %{ $self->_settings }, %$self )
+            : $count == 1 ? $self->_get_setting(shift)
+            :         map { $self->_get_setting($_) } @_;
+    } else {
+        return
+              $count == 0 ? %{ $self->_settings }
+            : $count == 1 ? $self->_get_setting(shift)
+            :         map { $self->_get_setting($_) } @_;
+    }
+}
+
+
 ### Setter ###
 
 =method C<< set( name => value, name => value, ... ) >>
@@ -78,8 +146,6 @@ persist the change:
 
 =cut
 
-my %SETTINGS;
-
 sub set {
     my $self = shift;
     return $self unless @_;
@@ -93,80 +159,24 @@ sub set {
         $return = 0;
     } else {
         $class  = $self;
-        $self   = \%SETTINGS;
+        $self   = $class->_settings;
         $return = 1;
     }
 
     delete $self->{keyword_set} if ( $set{keywords} );
-    delete $self->{"tr$_"} for grep { exists $set{"quote$_"} } ( 1, 2, 3 );
+    delete $self->{"_tr$_"} for grep { exists $set{"quote$_"} } ( 1, 2, 3 );
 
-    my $internal = $class->isa( scalar caller );
+    my $internal = $class->_internal;
     while ( my ( $k, $v ) = each %set ) {
         Carp::carp( 'Unknown key ', $k )
-            unless $internal
-            || exists $self->{$k}
-            || exists $SETTINGS{$k};
+            unless $internal || $class->exists($k);
+        study($v) if defined($v) && !ref($v);
         $self->{$k} = $v;
     }
 
     return ( $self, $class )[$return];
 }
 
-
-
-### Accessor ###
-
-=method C<get( name, name, ... )>
-
-Get one or more existing values for one or more settings.
-If passed no names, returns all parameters and values.
-
-Can be called as a class method or an object method.
-
-=cut
-
-sub get {
-    my $self  = shift;
-    my $count = scalar(@_);
-
-    if ( defined( Scalar::Util::blessed($self) ) ) {
-        return
-              $count == 0 ? $self->hashkeyvals( { %SETTINGS, %$self } )
-            : $count == 1 ?
-                exists  $self->{ $_[0] }
-                    ?   $self->{ $_[0] }
-                    : $SETTINGS{ $_[0] }
-            : map { exists $self->{$_} ? $self->{$_} : $SETTINGS{$_} } @_;
-    } else {
-        return
-              $count == 0 ? $self->hashkeyvals( \%SETTINGS )
-            : $count == 1 ? $SETTINGS{ $_[0] }
-            :               @SETTINGS{@_};
-    }
-}
-
-=method exists( name, name, ... )
-
-Determine if values exists for one or more settings.
-
-Can be called as a class method or an object method.
-
-=cut
-
-sub exists {
-    my $self = shift;
-    return unless my $count = scalar(@_);
-
-    if ( Scalar::Util::blessed($self) ) {
-        return $count == 1
-            ? do {  exists $self->{ $_[0] } || exists $SETTINGS{ $_[0] } }
-            : map { exists $self->{ $_ }    || exists $SETTINGS{ $_ } } @_;
-    } else {
-        return
-            $count == 1 ? exists $SETTINGS{ $_[0] }
-            :       map { exists $SETTINGS{ $_ } } @_;
-    }
-}
 
 
 =method C<< add_handler( $class => \&code_ref ) >>
@@ -243,10 +253,11 @@ An example:
      my ($dest, $stderr);
      Perl::Tidy::perltidy(
          argv => [ qw(
+             --perl-best-practices
              --noprofile
              --nostandard-output
              --standard-error-output
-             --nopass-version-line
+             --nooutdent-long-lines
          ) ],
          source      => \$source,
          destination => \$dest,
@@ -682,9 +693,9 @@ __PACKAGE__->set(
     # String options
     quote   => undef,   # Auto
     quote1  => "'",
-    #tr1     => q!tr\\'\\'\\!,
+    #_tr1    => q!tr\\'\\'\\!,
     quote2  => '"',
-    #tr2     => q!tr\\"\\"\\!,
+    #_tr2    => q!tr\\"\\"\\!,
     q1      => 'q',
     q2      => 'qq',
     sigils  => '$@',
@@ -759,14 +770,14 @@ sub stringify {
     return $self->stringify2($_)
         if ( ( $longstr && $longstr < length() ) || ( $also && /[$also]/ ) );
 
-    my $tr1 = $self->get('tr1');
-    $self = $self->set( tr1 => $tr1 = "tr\\$quote1\\$quote1\\" )
+    my $tr1 = $self->get('_tr1');
+    $self = $self->set( _tr1 => $tr1 = "tr\\$quote1\\$quote1\\" )
         if ( not $tr1 );
     my $single_quotes = eval $tr1 // die $@;
     return $self->stringify1($_) unless $single_quotes;
 
-    my ( $sigils, $tr2 ) = $self->get(qw( sigils tr2 ));
-    $self = $self->set( tr2 => $tr2 = "tr\\$quote2$sigils\\$quote2$sigils\\" )
+    my ( $sigils, $tr2 ) = $self->get(qw( sigils _tr2 ));
+    $self = $self->set( _tr2 => $tr2 = "tr\\$quote2$sigils\\$quote2$sigils\\" )
         if ( not $tr2 );
     my $double_quotes = eval $tr2 // die $@;
     return $self->stringify2($_) unless $double_quotes;
@@ -900,6 +911,23 @@ sub numify {
 
 ### Scalar ###
 
+=option Scalarify options
+
+=over
+
+=item I<scalar_ref>  => B<'\do{1;$_}'>
+
+How to generate a reference to a scalar.
+
+=back
+
+=cut
+
+__PACKAGE__->set(
+    # Scalar options
+    scalar_ref  => '\do{1;$_}',
+);
+
 =method C<scalarify( value )>
 
 Returns value as a scalar.  If value is not a reference, performs some magic
@@ -959,7 +987,8 @@ sub _scalarify {
         : $ref eq 'REF'    ? $self->refify($$_)
         : $ref eq 'REGEXP' ? $self->regexpify($_)        # ???
         : do {
-            my $reference = $self->get('reference');
+            my $reference = $self->get( lc($ref) . '_reference' )
+                ||          $self->get('reference');
 
               $ref eq 'GLOB'    ? _subst( $reference, $self->globify($$_) )
             : $ref eq 'LVALUE'  ? _subst( $reference, $self->lvalueify($$_) )
@@ -1092,7 +1121,7 @@ See L<< /I<encode2>  => B<{ ... }> >>
 __PACKAGE__->set(
     # Regexp options
     quote3  => '/',
-    #tr3     => q!tr\\/\\/\\!,
+    #_tr3    => q!tr\\/\\/\\!,
     q3      => 'qr',
 
     encode3 => {
@@ -1123,8 +1152,8 @@ sub regexpify {
     local $_ = shift if @_;
     local $@ = undef;
 
-    my ( $quote3, $tr3 ) = $self->get(qw( quote3 tr3 ));
-    $self = $self->set( tr3 => $tr3 = "tr\\$quote3\\$quote3\\" )
+    my ( $quote3, $tr3 ) = $self->get(qw( quote3 _tr3 ));
+    $self = $self->set( _tr3 => $tr3 = "tr\\$quote3\\$quote3\\" )
         if ( not $tr3 );
     my $quoter = eval $tr3 // die $@;
     my ( $open, $close )
@@ -1263,32 +1292,29 @@ before strings (using C<cmp>).
 
 =cut
 
-sub _cmp_;
+sub keysort($$);
 BEGIN {
-    if ( $^V >= v5.16.0 ) {
-        eval <<'END_CMP';
-sub _cmp_ {
-    return CORE::fc( $_[0] ) cmp CORE::fc( $_[1] )
-        ||           $_[0]   cmp           $_[1];
-}
-END_CMP
-    } else {
-        eval <<'END_CMP';
-sub _cmp_ { $_[0] cmp $_[1] }
-END_CMP
-    }
+    no warnings 'qw';
+    my $keysort = String::Tools::stitch(qw(
+        sub keysort($$) {
+            my ( $a, $b ) = @_;
+            my $numa = Datify->is_numeric($a);
+            my $numb = Datify->is_numeric($b);
+            return
+                  $numa && $numb ? $a <=> $b
+                : $numa          ? -1
+                :          $numb ?        +1
+                :                  $a_cmp__b
+                ;
+        }
+    ));
+    my $a_cmp__b
+        = ( $^V >= v5.16.0 ? 'CORE::fc($a) cmp CORE::fc($b) || ' : '' )
+        . '$a cmp $b';
+    $keysort = String::Tools::subst( $keysort, a_cmp__b => $a_cmp__b );
+    eval($keysort) or $@ and die $@;
 }
 
-sub keysort($$) {
-    my ( $a, $b ) = @_;
-    my $numa = Datify->is_numeric($a);
-    my $numb = Datify->is_numeric($b);
-       $numa && $numb ? $a <=> $b
-    :  $numa          ? -1
-    :           $numb ?        +1
-    :  _cmp_( $a, $b )
-    ;
-}
 
 =method C<hashkeys( $hash )>
 
@@ -1788,13 +1814,61 @@ sub globify   {
     return $name;
 }
 
-### Internal ###
-### Do not use these methods outside of this package,
+
+=method C<< beautify( ify => values ) >>
+
+Calls L</beautify> on the output of the C<*ify> method with C<values>.
+
+If there has been no C<beautify> method specified, returns the raw output
+from the C<*ify> method.
+
+    say( Datify->beauitfy( scalarify => $scalar ) );
+
+=cut
+
+sub beautify {
+    my $self = &self;
+    my ( $method, @params ) = @_;
+
+    $method = $self->can($method) || die "Cannot $method";
+
+    if ( my $beauty = $self->get('beautify') ) {
+        return $beauty->( $self->$method(@params) );
+    } else {
+        return $self->$method(@params);
+    }
+}
+
+### Private Methods & Settings ###
+### Do not use these methods & settings outside of this package,
 ### they are subject to change or disappear at any time.
+sub class {
+    return scalar caller unless @_;
+    my $caller = caller;
+    my $class;
+    if ( defined( $class = Scalar::Util::blessed( $_[0] ) )
+        || ( !ref( $_[0] ) && length( $class = $_[0] ) ) )
+    {
+        if ( $class->isa($caller) ) {
+            shift;
+            return $class;
+        }
+    }
+    return $caller;
+}
 sub self {
     my $self = shift;
     return defined( Scalar::Util::blessed($self) ) ? $self : $self->new();
 }
+sub _internal { return $_[0]->isa( scalar caller( 1 + ( $_[1] // 0 ) ) ) }
+sub _private {
+    Carp::croak('Illegal use of private method') unless $_[0]->_internal(1);
+}
+sub _settings() {
+    &_private;
+    \state %SETTINGS;
+}
+
 sub _nameify {
     local $_ = shift if @_;
     s/::/_/g;
@@ -1803,11 +1877,11 @@ sub _nameify {
 sub _find_handler {
     my $self  = shift;
     my $class = shift;
+
     my $isa = mro::get_linear_isa($class);
     foreach my $c (@$isa) {
-        if ( my $code = $self->can( _nameify($c) ) ) {
-            return $code;
-        }
+        next unless my $code = $self->can( _nameify($c) );
+        return $code;
     }
     return;
 }
@@ -2004,7 +2078,7 @@ sub _pop_position {
     my $self = shift;
     return pop @{ $self->{_position} };
 }
-sub _name_and_position {
+sub _cache_position {
     my $self = shift;
 
     my $nest = $self->get('nested') // $self->get('dereference');
@@ -2042,7 +2116,7 @@ sub _cache_add {
 
     return $self unless my $refaddr = Scalar::Util::refaddr $ref;
     my $_cache = $self->{_cache} //= {};
-    my $entry = $_cache->{$refaddr} //= [ $self->_name_and_position ];
+    my $entry = $_cache->{$refaddr} //= [ $self->_cache_position ];
     push @$entry, $value if @$entry == $self->get('_cache_hit');
 
     return $self;
@@ -2058,10 +2132,10 @@ sub _cache_get {
         my $repr = $self->get('_cache_hit');
         return $entry->[$repr]
             // Carp::croak 'Recursive structures not allowed at ',
-                           $self->_name_and_position;
+                           $self->_cache_position;
     } else {
         # Pre-populate the cache, so that we can check for loops
-        $_cache->{$refaddr} = [ $self->_name_and_position ];
+        $_cache->{$refaddr} = [ $self->_cache_position ];
         return;
     }
 }
