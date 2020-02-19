@@ -31,6 +31,7 @@ use overload ();        #qw( Method Overloaded );
 
 use Carp         ();    #qw( carp croak );
 use List::Util   ();    #qw( reduce sum );
+use LooksLike    ();    #qw( numeric );
 use Scalar::Util ();    #qw( blessed looks_like_number refaddr reftype );
 use String::Tools v0.18.277 ();    #qw( stitch stringify subst );
 use Sub::Util      1.40     ();    #qw( subname );
@@ -850,13 +851,7 @@ sub is_numeric {
         }
     }
 
-    # The "defined" ensures that we're not considering nan,
-    # and the tests against inf/-inf ensure that those are rejected
-    # (even though looks_like_number considers them valid)
-    return Scalar::Util::looks_like_number($_)
-        && defined( $_ <=> 0 )
-        && $_ !=  'inf'
-        && $_ != '-inf';
+    return LooksLike::numeric($_);
 }
 
 =method C<numify( value )>

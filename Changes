@@ -2,6 +2,10 @@ Revision history for Datify.
 
 {{$NEXT}}
 
+ - Use LooksLike::numeric where it makes sense.
+
+v0.20.045 2020-02-14
+
  - Moved %SETTINGS into a state variable, and created an accessor.
  - Datify::Path is now a subclass of Datify.
  - Several internal and testing changes.
