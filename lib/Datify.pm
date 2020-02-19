@@ -1295,17 +1295,19 @@ BEGIN {
             my ( $a, $b ) = @_;
             my $numa = Datify->is_numeric($a);
             my $numb = Datify->is_numeric($b);
-            return
-                  $numa && $numb ? $a <=> $b
+            return(
+                ( $numa && $numb ? $a <=> $b
                 : $numa          ? -1
                 :          $numb ?        +1
-                :                  $a_cmp__b
-                ;
+                :                  $a_cmp__b )
+                ||                 $a cmp $b
+            );
         }
     ));
     my $a_cmp__b
-        = ( $^V >= v5.16.0 ? 'CORE::fc($a) cmp CORE::fc($b) || ' : '' )
-        . '$a cmp $b';
+        = $^V >= v5.16.0
+        ? 'CORE::fc($a) cmp CORE::fc($b)'
+        :       'lc($a) cmp lc($b)';
     $keysort = String::Tools::subst( $keysort, a_cmp__b => $a_cmp__b );
     eval($keysort) or $@ and die $@;
 }
