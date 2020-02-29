@@ -29,11 +29,11 @@ except that it's easier to use, and has better formatting and options.
 use mro      ();        #qw( get_linear_isa );
 use overload ();        #qw( Method Overloaded );
 
-use Carp         ();    #qw( carp croak );
-use List::Util   ();    #qw( reduce sum );
-use LooksLike    ();    #qw( numeric );
-use Scalar::Util ();    #qw( blessed looks_like_number refaddr reftype );
-use String::Tools v0.18.277 ();    #qw( stitch stringify subst );
+use Carp                    ();    #qw( carp croak );
+use List::Util              ();    #qw( reduce sum );
+use LooksLike     v0.20.060 ();    #qw( number numeric representation );
+use Scalar::Util            ();    #qw( blessed refaddr reftype );
+use String::Tools v0.19.045 ();    #qw( stitch stringify subst );
 use Sub::Util      1.40     ();    #qw( subname );
 
 
@@ -891,12 +891,13 @@ sub numify {
 
         return $_;
     }
-    elsif ( Scalar::Util::looks_like_number($_) ) {
-        return
-              $_ ==  'inf'        ? $self->get('infinite')
-            : $_ == '-inf'        ? $self->get('-infinite')
-            : defined( $_ <=> 0 ) ? $_
-            :                       $self->get('nonnumber');
+    elsif ( LooksLike::number($_) ) {
+        return LooksLike::representation(
+            $_,
+            "infinity"  => $self->get('infinite'),
+            "-infinity" => $self->get('-infinite'),
+            "nan"       => $self->get('nonnumber')
+        );
     }
 
     return $self->get('nonnumber');
@@ -966,7 +967,7 @@ sub _scalarify {
             : $ref2 eq 'LVALUE'  ? $self->lvalueify($_)
             : $ref2 eq 'VSTRING' ? $self->vstringify($_)
             : $ref2 eq 'SCALAR'  ? (
-                Scalar::Util::looks_like_number($_)
+                LooksLike::number($_)
                     ? $self->numify($_)
                     : $self->stringify($_)
             )
@@ -1920,7 +1921,7 @@ sub _to_encode {
 
     my @ranges = ( $encode->{also} // () );
     foreach my $element (@_) {
-        if ( Scalar::Util::looks_like_number($element) ) {
+        if ( LooksLike::number($element) ) {
             push @encode, $element;
         } elsif ( length($element) == 1 ) {
             # An actual character, lets get the ordinal value and use that

@@ -2,6 +2,11 @@ Revision history for Datify.
 
 {{$NEXT}}
 
+ - Used LooksLike in more places that it makes sense.
+ - Changed keysort test to handle the rendering of not-a-number as "-nan".
+
+v0.20.052 2020-02-21
+
  - Added a test for keysort.
  - Use LooksLike::numeric where it makes sense.
 
