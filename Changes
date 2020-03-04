@@ -3,6 +3,7 @@ Revision history for Datify.
 {{$NEXT}}
 
  - Added keymap() to support changing keys.
+ - Minor code cleanups.
 
 v0.20.060 2020-02-29
 

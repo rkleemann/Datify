@@ -1291,6 +1291,10 @@ before strings (using C<cmp>).
 sub keysort($$);
 BEGIN {
     no warnings 'qw';
+    my $a_cmp__b
+        = $^V >= v5.16.0
+        ? 'CORE::fc($a) cmp CORE::fc($b)'
+        :       'lc($a) cmp lc($b)';
     my $keysort = String::Tools::stitch(qw(
         sub keysort($$) {
             my ( $a, $b ) = @_;
@@ -1305,10 +1309,6 @@ BEGIN {
             );
         }
     ));
-    my $a_cmp__b
-        = $^V >= v5.16.0
-        ? 'CORE::fc($a) cmp CORE::fc($b)'
-        :       'lc($a) cmp lc($b)';
     $keysort = String::Tools::subst( $keysort, a_cmp__b => $a_cmp__b );
     eval($keysort) or $@ and die $@;
 }
@@ -1381,8 +1381,9 @@ sub pairify {
     my $self = &self;
     if (1 == @_) {
         my $ref = Scalar::Util::reftype $_[0];
-        if    ( $ref eq 'ARRAY' ) { @_ = @{ +shift } }
-        elsif ( $ref eq 'HASH' )  { @_ = $self->hashkeyvals(shift) }
+        @_  = $ref eq 'ARRAY' ? @{ +shift }
+            : $ref eq 'HASH'  ? $self->hashkeyvals(shift)
+            :                   @_;
     }
     # Use for loop in order to preserve the order of @_,
     # rather than each %{ { @_ } }, which would mix-up the order.
