@@ -1353,6 +1353,9 @@ sub hashkeys {
         }
         @keys = grep { $keyfilter->() } @keys;
     }
+    if ( my $keymap = $self->get('keymap') ) {
+        @keys = map { $self->$keymap($_) } @keys;
+    }
     if ( my $keysort = $self->get('keysort') ) {
         @keys = sort $keysort @keys;
     }
@@ -1435,6 +1438,11 @@ C<SCALAR> entries treat all values according to the boolean evaluation.
 When filtering keys in a hash, if the key is not found in the C<keyfilter>
 C<HASH> or C<ARRAY>, should it pass through or not?
 
+=item I<keymap>          => B<undef>
+
+If you want to remap keys in a hash, assign a reference to some code that
+will be passed the object and the key, and should return the new key.
+
 =item I<keysort>          => B<\&Datify::keysort>
 
 How to sort the keys in a hash.  This has a performance hit,
@@ -1453,6 +1461,7 @@ __PACKAGE__->set(
     # Hash options
     hash_ref         => '{$_}',
     pair             => '$key => $value',
+    keymap           => undef,
     keysort          => \&Datify::keysort,
     keyfilter        => undef,
     keyfilterdefault => 1,

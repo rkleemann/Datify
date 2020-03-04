@@ -2,6 +2,10 @@ Revision history for Datify.
 
 {{$NEXT}}
 
+ - Added keymap() to support changing keys.
+
+v0.20.060 2020-02-29
+
  - Used LooksLike in more places that it makes sense.
  - Changed keysort test to handle the rendering of not-a-number as "-nan".
 
